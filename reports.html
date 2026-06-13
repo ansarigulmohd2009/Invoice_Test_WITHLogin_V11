@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G.M. Enterprises - Reports</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box !important; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        .dash-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.1rem 1.25rem; }
+        .dash-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin-bottom: 4px; }
+        .dash-stat-value { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; }
+        .dash-table th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+        .dash-table td { font-size: 12px; padding: 9px 10px; border-bottom: 1px solid #f8fafc; color: #334155; vertical-align: middle; }
+        .dash-table tr:last-child td { border-bottom: none; }
+        .dash-table tr:hover td { background: #f8fafc; }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans h-screen flex flex-col overflow-hidden text-slate-900 antialiased">
+
+    <!-- ── LOGIN OVERLAY ── -->
+    <div id="login-overlay" class="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center">
+        <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none"></div>
+        <div class="bg-white rounded-2xl p-10 w-full max-w-sm shadow-[0_30px_60px_rgba(0,0,0,0.45)] relative z-10 mx-4">
+            <div class="text-center mb-8">
+                <div class="text-4xl leading-none mb-2">🏢</div>
+                <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">G.M. Enterprises</h1>
+                <p class="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">Reports Login</p>
+            </div>
+            <div id="login-error" class="hidden bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-sm font-medium mb-4"></div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Username</label>
+                    <input type="text" id="login-username" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 text-slate-800 font-medium" autocomplete="username" placeholder="Enter username" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 text-slate-800 font-medium pr-10" autocomplete="current-password" placeholder="Enter password" onkeydown="if(event.key==='Enter') doLogin()" />
+                        <button type="button" onclick="toggleLoginPwd()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+                    </div>
+                </div>
+                <button id="login-btn" onclick="doLogin()" class="w-full bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-bold py-2.5 rounded-lg text-sm transition-all mt-2">
+                    Sign In
+                </button>
+            </div>
+            <p class="text-center text-[10px] text-slate-300 mt-8 font-medium">Developed by Itransform Technology</p>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="reports-main" class="hidden flex-1 flex-col overflow-hidden h-full">
+        <!-- Header -->
+        <div class="bg-white border-b border-slate-200 px-5 py-3.5 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-slate-800">Reports</h2>
+                    <p class="text-[11px] text-slate-400 font-medium">G.M. Enterprises · Live from Google Sheets</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="loadReports()" id="rep-refresh-btn" title="Refresh data" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-all">
+                    <svg id="rep-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.65"></path></svg>
+                    Refresh
+                </button>
+                <button onclick="doLogout()" title="Logout" class="px-3 py-2.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98] transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab bar -->
+        <div class="bg-white border-b border-slate-200 px-5 flex gap-1 shrink-0 overflow-x-auto">
+            <button onclick="switchReportTab('reprint')" id="rep-tab-reprint" class="rep-tab-btn whitespace-nowrap px-4 py-3 text-xs font-bold border-b-2 border-teal-600 text-teal-700 transition-colors">
+                🖨️ Reprint Invoice
+            </button>
+            <button onclick="switchReportTab('challan')" id="rep-tab-challan" class="rep-tab-btn whitespace-nowrap px-4 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">
+                📦 Challans
+            </button>
+            <button onclick="switchReportTab('month')" id="rep-tab-month" class="rep-tab-btn whitespace-nowrap px-4 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">
+                📅 Month-wise
+            </button>
+            <button onclick="switchReportTab('year')" id="rep-tab-year" class="rep-tab-btn whitespace-nowrap px-4 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">
+                📆 Year-wise
+            </button>
+            <button onclick="switchReportTab('buyer')" id="rep-tab-buyer" class="rep-tab-btn whitespace-nowrap px-4 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">
+                👤 Buyer-wise
+            </button>
+            <button onclick="switchReportTab('all')" id="rep-tab-all" class="rep-tab-btn whitespace-nowrap px-4 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">
+                📋 All Invoices
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
+            <div class="max-w-6xl mx-auto space-y-5">
+
+                <!-- ── REPRINT TAB ── -->
+                <div id="rep-panel-reprint" class="rep-panel">
+                    <div class="bg-white rounded-xl border border-slate-200 p-6 max-w-lg mx-auto">
+                        <h3 class="font-bold text-base text-slate-800 mb-1">Reprint Invoice by Invoice No.</h3>
+                        <p class="text-xs text-slate-400 mb-5">Enter the exact Invoice Number to fetch and reprint it.</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="reprint-inv-input" placeholder="e.g. INV/26-27/001" class="flex-1 border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 font-mono shadow-sm" onkeydown="if(event.key==='Enter') fetchInvoiceForReprint()" />
+                            <button onclick="fetchInvoiceForReprint()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm transition-all flex items-center gap-2">
+                                <svg id="reprint-fetch-spinner" class="hidden animate-spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                Fetch
+                            </button>
+                        </div>
+                        <div id="reprint-error" class="hidden mt-3 bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-xs font-medium"></div>
+                    </div>
+                    <!-- Fetched invoice preview card -->
+                    <div id="reprint-preview-card" class="hidden bg-white rounded-xl border border-slate-200 overflow-hidden max-w-2xl mx-auto mt-4">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <span class="font-mono font-extrabold text-teal-700 text-base" id="rp-inv-no"></span>
+                                <span class="ml-3 text-xs text-slate-400" id="rp-inv-date"></span>
+                            </div>
+                            <button onclick="triggerReprintWindow()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                Print Invoice
+                            </button>
+                        </div>
+                        <div class="p-5 grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Buyer</div>
+                                <div class="font-bold text-slate-800" id="rp-buyer-name"></div>
+                                <div class="text-xs text-slate-500 mt-0.5" id="rp-buyer-address"></div>
+                                <div class="text-xs text-slate-500 font-mono mt-0.5" id="rp-buyer-gstin"></div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Totals</div>
+                                <div class="text-xs text-slate-500">Subtotal: <span class="font-semibold text-slate-700" id="rp-subtotal"></span></div>
+                                <div class="text-xs text-slate-500">Tax: <span class="font-semibold text-slate-700" id="rp-tax"></span></div>
+                                <div class="text-sm font-extrabold text-slate-800 mt-1">Grand Total: <span id="rp-grand"></span></div>
+                            </div>
+                        </div>
+                        <div class="px-5 pb-4">
+                            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Items</div>
+                            <table class="dash-table w-full border border-slate-100 rounded-lg overflow-hidden">
+                                <thead><tr>
+                                    <th>#</th><th>Description</th><th>HSN</th><th>Qty</th><th>Rate</th><th class="text-right pr-4">Amount</th>
+                                </tr></thead>
+                                <tbody id="rp-items-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- ── CHALLAN TAB ── -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div id="rep-panel-challan" class="rep-panel hidden">
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <!-- Search + controls -->
+                        <div class="flex flex-wrap gap-3 items-end mb-5">
+                            <div class="flex-1 min-w-[180px]">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Search</label>
+                                <input type="text" id="challan-search" placeholder="Challan no., buyer name…" oninput="applyChallanFilter()" class="w-full border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">From Date</label>
+                                <input type="date" id="challan-from" oninput="applyChallanFilter()" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">To Date</label>
+                                <input type="date" id="challan-to" oninput="applyChallanFilter()" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <button onclick="clearChallanFilter()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-all">Clear</button>
+                            <button onclick="downloadChallanExcel()" class="flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-sm transition-all ml-auto">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download Excel
+                            </button>
+                        </div>
+                        <!-- Summary row -->
+                        <div id="challan-summary-row" class="text-xs text-slate-500 font-medium mb-3"></div>
+                        <!-- Table -->
+                        <div class="overflow-x-auto">
+                            <table class="dash-table w-full">
+                                <thead><tr>
+                                    <th>Challan No.</th>
+                                    <th>Date</th>
+                                    <th>Buyer</th>
+                                    <th>Ref. Invoice No.</th>
+                                    <th class="text-right pr-5">Grand Total</th>
+                                    <th>Saved By</th>
+                                    <th class="text-center">Action</th>
+                                </tr></thead>
+                                <tbody id="challan-report-body">
+                                    <tr><td colspan="7" class="text-center py-8 text-slate-400 text-xs">
+                                        <svg class="animate-spin inline mr-2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                        Loading challans…
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Challan detail modal -->
+                    <div id="challan-modal" class="hidden fixed inset-0 z-[500] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                        <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+                            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                                <div>
+                                    <span class="font-mono font-extrabold text-amber-700 text-base" id="cm-challan-no"></span>
+                                    <span class="ml-3 text-xs text-slate-400" id="cm-date"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="printChallanWindow()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition-all">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                        Print
+                                    </button>
+                                    <button onclick="closeChallanModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs transition-all">✕ Close</button>
+                                </div>
+                            </div>
+                            <div class="overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Buyer</div>
+                                        <div class="font-bold text-slate-800" id="cm-buyer-name"></div>
+                                        <div class="text-xs text-slate-500 mt-0.5" id="cm-buyer-phone"></div>
+                                        <div class="text-xs text-slate-500 font-mono mt-0.5" id="cm-buyer-email"></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Totals</div>
+                                        <div class="text-xs text-slate-500">Subtotal: <span class="font-semibold text-slate-700" id="cm-subtotal"></span></div>
+                                        <div class="text-xs text-slate-500">Tax: <span class="font-semibold text-slate-700" id="cm-tax"></span></div>
+                                        <div class="text-sm font-extrabold text-slate-800 mt-1">Grand Total: <span id="cm-grand"></span></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Items</div>
+                                    <table class="dash-table w-full border border-slate-100 rounded-lg overflow-hidden">
+                                        <thead><tr>
+                                            <th>#</th><th>Description</th><th>HSN</th><th>Qty</th><th>Rate</th><th class="text-right pr-4">Amount</th>
+                                        </tr></thead>
+                                        <tbody id="cm-items-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ── END CHALLAN TAB ── -->
+
+                <!-- ── MONTH-WISE TAB ── -->
+                <div id="rep-panel-month" class="rep-panel hidden">
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex flex-wrap gap-3 items-end mb-5">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Month</label>
+                                <input type="month" id="filter-month" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <button onclick="applyMonthFilter()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm transition-all">Apply Filter</button>
+                            <button onclick="clearMonthFilter()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-all">Clear</button>
+                        </div>
+                        <div id="month-summary-cards" class="grid grid-cols-3 gap-3 mb-5 hidden">
+                            <div class="dash-stat-card"><div class="dash-stat-label">Invoices</div><div id="ms-count" class="dash-stat-value">—</div></div>
+                            <div class="dash-stat-card"><div class="dash-stat-label">Revenue</div><div id="ms-revenue" class="dash-stat-value">—</div></div>
+                            <div class="dash-stat-card"><div class="dash-stat-label">Avg Invoice</div><div id="ms-avg" class="dash-stat-value">—</div></div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table w-full">
+                                <thead><tr>
+                                    <th>Invoice No.</th><th>Date</th><th>Buyer</th><th>Challan</th>
+                                    <th class="text-right pr-5">Grand Total</th><th>Saved By</th>
+                                </tr></thead>
+                                <tbody id="month-report-body">
+                                    <tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Select a month and click Apply Filter</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── YEAR-WISE TAB ── -->
+                <div id="rep-panel-year" class="rep-panel hidden">
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex flex-wrap gap-3 items-end mb-5">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Financial Year</label>
+                                <select id="filter-fy" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm bg-white">
+                                    <option value="">-- Select FY --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Calendar Year</label>
+                                <select id="filter-cy" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm bg-white">
+                                    <option value="">-- Select Year --</option>
+                                </select>
+                            </div>
+                            <button onclick="applyYearFilter()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm transition-all">Apply Filter</button>
+                            <button onclick="clearYearFilter()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-all">Clear</button>
+                        </div>
+                        <div id="year-summary-cards" class="grid grid-cols-3 gap-3 mb-5 hidden">
+                            <div class="dash-stat-card"><div class="dash-stat-label">Invoices</div><div id="ys-count" class="dash-stat-value">—</div></div>
+                            <div class="dash-stat-card"><div class="dash-stat-label">Revenue</div><div id="ys-revenue" class="dash-stat-value">—</div></div>
+                            <div class="dash-stat-card"><div class="dash-stat-label">Avg Invoice</div><div id="ys-avg" class="dash-stat-value">—</div></div>
+                        </div>
+                        <div id="year-chart-wrap" class="hidden bg-slate-50 rounded-xl p-4 mb-5 border border-slate-100">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Month-by-Month Breakdown</h4>
+                            <div style="position:relative;height:200px;"><canvas id="year-month-chart"></canvas></div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table w-full">
+                                <thead><tr>
+                                    <th>Invoice No.</th><th>Date</th><th>Buyer</th><th>Challan</th>
+                                    <th class="text-right pr-5">Grand Total</th><th>Saved By</th>
+                                </tr></thead>
+                                <tbody id="year-report-body">
+                                    <tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Select a year and click Apply Filter</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── BUYER-WISE TAB ── -->
+                <div id="rep-panel-buyer" class="rep-panel hidden">
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex flex-wrap gap-3 items-end mb-5">
+                            <div class="flex-1 min-w-[200px]">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Buyer Name</label>
+                                <div class="relative">
+                                    <input type="text" id="filter-buyer" placeholder="Search buyer name…" class="w-full border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm" oninput="onBuyerFilterInput(this.value)" />
+                                    <div id="buyer-filter-suggestions" class="hidden absolute z-50 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-40 overflow-y-auto divide-y divide-slate-100"></div>
+                                </div>
+                            </div>
+                            <button onclick="applyBuyerFilter()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm transition-all">Apply Filter</button>
+                            <button onclick="clearBuyerFilter()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-all">Clear</button>
+                        </div>
+                        <div id="buyer-summary-cards" class="grid grid-cols-3 gap-3 mb-5 hidden">
+                            <div class="dash-stat-card"><div class="dash-stat-label">Invoices</div><div id="bs-count" class="dash-stat-value">—</div></div>
+                            <div class="dash-stat-card"><div class="dash-stat-label">Revenue</div><div id="bs-revenue" class="dash-stat-value">—</div></div>
+                            <div class="dash-stat-card"><div class="dash-stat-label">Avg Invoice</div><div id="bs-avg" class="dash-stat-value">—</div></div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table w-full">
+                                <thead><tr>
+                                    <th>Invoice No.</th><th>Date</th><th>Buyer</th><th>Challan</th>
+                                    <th class="text-right pr-5">Grand Total</th><th>Saved By</th>
+                                </tr></thead>
+                                <tbody id="buyer-report-body">
+                                    <tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Search for a buyer and click Apply Filter</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── ALL INVOICES TAB ── -->
+                <div id="rep-panel-all" class="rep-panel hidden">
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex flex-wrap gap-3 items-end mb-5">
+                            <div class="flex-1 min-w-[180px]">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Search</label>
+                                <input type="text" id="filter-all-search" placeholder="Invoice no., buyer name…" oninput="applyAllFilter()" class="w-full border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">From Date</label>
+                                <input type="date" id="filter-all-from" oninput="applyAllFilter()" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">To Date</label>
+                                <input type="date" id="filter-all-to" oninput="applyAllFilter()" class="border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm" />
+                            </div>
+                            <button onclick="clearAllFilter()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-all">Clear</button>
+                            <button onclick="downloadAllExcel()" class="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm transition-all ml-auto">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download Excel
+                            </button>
+                        </div>
+                        <div id="all-summary-row" class="text-xs text-slate-500 font-medium mb-3"></div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table w-full">
+                                <thead><tr>
+                                    <th>Invoice No.</th><th>Date</th><th>Buyer</th><th>Challan</th>
+                                    <th class="text-right pr-5">Grand Total</th><th>Saved By</th>
+                                    <th class="text-center">Action</th>
+                                </tr></thead>
+                                <tbody id="all-report-body">
+                                    <tr><td colspan="7" class="text-center py-8 text-slate-400 text-xs">
+                                        <svg class="animate-spin inline mr-2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                        Loading invoices…
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Invoice detail modal -->
+                    <div id="invoice-modal" class="hidden fixed inset-0 z-[500] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                        <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+                            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                                <div>
+                                    <span class="font-mono font-extrabold text-teal-700 text-base" id="im-invoice-no"></span>
+                                    <span class="ml-3 text-xs text-slate-400" id="im-date"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="printInvoiceFromModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition-all">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                        Print
+                                    </button>
+                                    <button onclick="closeInvoiceModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs transition-all">✕ Close</button>
+                                </div>
+                            </div>
+                            <div class="overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Buyer</div>
+                                        <div class="font-bold text-slate-800" id="im-buyer-name"></div>
+                                        <div class="text-xs text-slate-500 mt-0.5" id="im-buyer-phone"></div>
+                                        <div class="text-xs text-slate-500 font-mono mt-0.5" id="im-buyer-email"></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Totals</div>
+                                        <div class="text-xs text-slate-500">Subtotal: <span class="font-semibold text-slate-700" id="im-subtotal"></span></div>
+                                        <div class="text-xs text-slate-500">Tax: <span class="font-semibold text-slate-700" id="im-tax"></span></div>
+                                        <div class="text-sm font-extrabold text-slate-800 mt-1">Grand Total: <span id="im-grand"></span></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Challan No.</div>
+                                    <div class="font-mono text-xs text-slate-600" id="im-challan-no"></div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Items</div>
+                                    <table class="dash-table w-full border border-slate-100 rounded-lg overflow-hidden">
+                                        <thead><tr>
+                                            <th>#</th><th>Description</th><th>HSN</th><th>Qty</th><th>Rate</th><th class="text-right pr-4">Amount</th>
+                                        </tr></thead>
+                                        <tbody id="im-items-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbxE_8SSl4LyGF2y0daXfSAwhDT1JZWbK_DgRzEcbWcpErrhpFSaYUayGVrGYpEi-nd5xA/exec";
+        const API_SECRET = "gme_k9x2mPqR7vLtN4wZ";
+
+        const state = {
+            company: { name: 'G.M.ENTERPRISES', address: 'Byculla(W)', gstin: '27AAAAA00000001', state: 'Maharashtra', stateCode: '27', phone: '+91 00000 00000', email: 'info@gmenterprises.com', website: 'www.gmenterprises.com' }
+        };
+
+        (function initLoginCheck() {
+            const token = sessionStorage.getItem('gme_token');
+            if (token) {
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('reports-main').classList.remove('hidden');
+                document.getElementById('reports-main').classList.add('flex');
+                loadReports();
+            }
+        })();
+
+        function toggleLoginPwd() {
+            var f = document.getElementById('login-password');
+            f.type = (f.type === 'password') ? 'text' : 'password';
+        }
+
+        async function doLogin() {
+            var username = (document.getElementById('login-username').value || '').trim();
+            var password = (document.getElementById('login-password').value || '').trim();
+            var errBox   = document.getElementById('login-error');
+            var btn      = document.getElementById('login-btn');
+
+            errBox.style.display = 'none';
+            if (!username || !password) {
+                errBox.textContent   = 'Please enter both username and password.';
+                errBox.style.display = 'block';
+                return;
+            }
+
+            btn.disabled    = true;
+            btn.textContent = 'Signing in…';
+
+            try {
+                var url = googleScriptUrl
+                    + '?action=checkLogin'
+                    + '&secret=' + encodeURIComponent(API_SECRET)
+                    + '&username=' + encodeURIComponent(username)
+                    + '&password=' + encodeURIComponent(password);
+
+                var res  = await fetch(url);
+                var data = await res.json();
+
+                if (data.success) {
+                    sessionStorage.setItem('gme_token',    data.token);
+                    sessionStorage.setItem('gme_username', data.username || username);
+                    sessionStorage.setItem('gme_display',  data.displayName || username);
+                    document.getElementById('login-overlay').classList.add('hidden');
+                    document.getElementById('reports-main').classList.remove('hidden');
+                    document.getElementById('reports-main').classList.add('flex');
+                    loadReports();
+                } else {
+                    errBox.textContent   = data.message || 'Invalid username or password.';
+                    errBox.style.display = 'block';
+                    document.getElementById('login-password').value = '';
+                    document.getElementById('login-password').focus();
+                }
+            } catch (err) {
+                errBox.textContent   = 'Connection failed. Check your internet or Apps Script URL.';
+                errBox.style.display = 'block';
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Sign In';
+            }
+        }
+
+        function doLogout() {
+            sessionStorage.removeItem('gme_token');
+            sessionStorage.removeItem('gme_username');
+            sessionStorage.removeItem('gme_display');
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').style.display = 'none';
+            document.getElementById('reports-main').classList.add('hidden');
+            document.getElementById('reports-main').classList.remove('flex');
+            document.getElementById('login-overlay').classList.remove('hidden');
+            document.getElementById('login-username').focus();
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `p-4 rounded-xl flex items-center gap-3 text-white transition-all shadow-xl border border-white/10 max-w-sm transform translate-y-0 opacity-100 pointer-events-auto ${type === 'success' ? 'bg-slate-900 shadow-slate-900/20' : 'bg-red-600 shadow-red-600/20'}`;
+            toast.innerHTML = type === 'success'
+                ? `<svg width="20" height="20" class="text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> <span class="font-semibold text-sm leading-snug">${message}</span>`
+                : `<svg width="20" height="20" class="text-white shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> <span class="font-semibold text-sm leading-snug">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        function fmtINR(n) {
+            if (isNaN(n) || n === null) return '—';
+            if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';
+            if (n >= 100000)   return '₹' + (n / 100000).toFixed(2) + ' L';
+            return '₹' + Math.round(n).toLocaleString('en-IN');
+        }
+
+        function fmtDate(raw) {
+            if (!raw) return '-';
+            const d = new Date(raw);
+            if (isNaN(d)) return raw;
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function getMonthKey(dateStr) {
+            const d = new Date(dateStr);
+            if (isNaN(d)) return null;
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        }
+
+        function getMonthLabel(key) {
+            const [y, m] = key.split('-');
+            return new Date(+y, +m-1, 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+        }
+
+        function numberToWords(price) {
+            const sglDigit  = ["Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine"];
+            const dblDigit  = ["Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
+            const tensPlace = ["","Ten","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+            if (price.toString().length > 9) return "Amount too large";
+            if (price === 0) return "Zero Only";
+            const numString   = price.toString().padStart(9, '0');
+            const crores      = parseInt(numString.substring(0, 2), 10);
+            const lakhs       = parseInt(numString.substring(2, 4), 10);
+            const thousands   = parseInt(numString.substring(4, 6), 10);
+            const hundreds    = parseInt(numString.substring(6, 7), 10);
+            const tensAndOnes = parseInt(numString.substring(7, 9), 10);
+            let words = "";
+            const processTwoDigits = (num, suffix) => {
+                if (num > 0) {
+                    if (num < 10) words += sglDigit[num] + " " + suffix + " ";
+                    else if (num < 20) words += dblDigit[num - 10] + " " + suffix + " ";
+                    else {
+                        words += tensPlace[Math.floor(num / 10)] + " ";
+                        if (num % 10 > 0) words += sglDigit[num % 10] + " ";
+                        words += suffix + " ";
+                    }
+                }
+            };
+            processTwoDigits(crores, "Crore");
+            processTwoDigits(lakhs, "Lakh");
+            processTwoDigits(thousands, "Thousand");
+            if (hundreds > 0) words += sglDigit[hundreds] + " Hundred ";
+            if (tensAndOnes > 0) {
+                if (words !== "") words += "and ";
+                if (tensAndOnes < 10) words += sglDigit[tensAndOnes] + " ";
+                else if (tensAndOnes < 20) words += dblDigit[tensAndOnes - 10] + " ";
+                else {
+                    words += tensPlace[Math.floor(tensAndOnes / 10)] + " ";
+                    if (tensAndOnes % 10 > 0) words += sglDigit[tensAndOnes % 10] + " ";
+                }
+            }
+            return words.trim() + " Only";
+        }
+
+        // ── DATA STORES ──────────────────────────────────────────────────────────
+        let repAllInvoices      = [];
+        let repAllChallans      = [];
+        let repChallanFiltered  = [];
+        let repAllFiltered      = [];
+        let repYearChartInstance = null;
+        let currentReprintInvoice = null;
+        let currentChallanDetail  = null;
+        let currentInvoiceDetail  = null;
+
+        // ── LOAD (fetches both invoices + challans) ───────────────────────────────
+        async function loadReports() {
+            const icon  = document.getElementById('rep-refresh-icon');
+            const token = sessionStorage.getItem('gme_token') || '';
+            icon.classList.add('animate-spin');
+            try {
+                const [invRes, chalRes] = await Promise.all([
+                    fetch(googleScriptUrl + '?action=getDashboard&token='    + encodeURIComponent(token)),
+                    fetch(googleScriptUrl + '?action=getChallansData&token=' + encodeURIComponent(token))
+                ]);
+                const invData  = await invRes.json();
+                const chalData = await chalRes.json();
+
+                if (invData.sessionExpired || chalData.sessionExpired) { doLogout(); return; }
+
+                repAllInvoices = (invData.invoices || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+                repAllChallans = (chalData.challans || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                populateYearSelectors();
+
+                const active = document.querySelector('.rep-tab-btn.border-teal-600') || document.getElementById('rep-tab-reprint');
+                try {
+                    const activeId = active.id.replace('rep-tab-','');
+                    if (activeId === 'all')     applyAllFilter();
+                    if (activeId === 'challan') renderChallanTable(repAllChallans);
+                } catch(e) {}
+
+                applyAllFilter();
+                renderChallanTable(repAllChallans);
+            } catch(e) {
+                showToast('Failed to load data. Check your script URL.', 'error');
+            } finally {
+                icon.classList.remove('animate-spin');
+            }
+        }
+
+        function populateYearSelectors() {
+            const fySet = new Set();
+            const cySet = new Set();
+            repAllInvoices.forEach(inv => {
+                const d = new Date(inv.date);
+                if (isNaN(d)) return;
+                const m = d.getMonth();
+                const y = d.getFullYear();
+                const startY = m >= 3 ? y : y - 1;
+                fySet.add(`${String(startY).slice(-2)}-${String(startY+1).slice(-2)}`);
+                cySet.add(String(y));
+            });
+            const fyEl = document.getElementById('filter-fy');
+            const cyEl = document.getElementById('filter-cy');
+            const currentFySel = fyEl.value;
+            const currentCySel = cyEl.value;
+            fyEl.innerHTML = '<option value="">-- Select FY --</option>' + [...fySet].sort().reverse().map(v => `<option value="${v}" ${v===currentFySel?'selected':''}>${v}</option>`).join('');
+            cyEl.innerHTML = '<option value="">-- Select Year --</option>' + [...cySet].sort().reverse().map(v => `<option value="${v}" ${v===currentCySel?'selected':''}>${v}</option>`).join('');
+        }
+
+        function switchReportTab(tabId) {
+            document.querySelectorAll('.rep-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById('rep-panel-' + tabId).classList.remove('hidden');
+
+            document.querySelectorAll('.rep-tab-btn').forEach(btn => {
+                btn.classList.remove('border-teal-600', 'text-teal-700', 'border-amber-500', 'text-amber-700');
+                btn.classList.add('border-transparent', 'text-slate-500');
+            });
+            const active = document.getElementById('rep-tab-' + tabId);
+            active.classList.remove('border-transparent', 'text-slate-500');
+            if (tabId === 'challan') {
+                active.classList.add('border-amber-500', 'text-amber-700');
+            } else {
+                active.classList.add('border-teal-600', 'text-teal-700');
+            }
+
+            if (tabId === 'all')     applyAllFilter();
+            if (tabId === 'challan') applyChallanFilter();
+        }
+
+        // ── INVOICE TABLE HELPERS ─────────────────────────────────────────────────
+        function reportTableRows(invArr) {
+            if (!invArr.length) return '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">No invoices found for this filter.</td></tr>';
+            return invArr.map(inv => `
+                <tr>
+                    <td><span class="font-mono font-bold text-teal-700 text-[11px]">${inv.invoiceNo || '-'}</span></td>
+                    <td class="text-slate-500">${fmtDate(inv.date)}</td>
+                    <td class="font-semibold text-slate-700 max-w-[150px] truncate" title="${inv.buyerName||''}">${inv.buyerName || '-'}</td>
+                    <td class="text-slate-400 font-mono text-[11px]">${inv.challanNo || '-'}</td>
+                    <td class="text-right font-bold text-slate-800 pr-5">${fmtINR(parseFloat(inv.grandTotal)||0)}</td>
+                    <td class="text-slate-400 text-[11px]">${inv.username || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function allInvoiceTableRows(invArr) {
+            if (!invArr.length) return '<tr><td colspan="7" class="text-center py-10 text-slate-400 text-xs">No invoices found for this filter.</td></tr>';
+            return invArr.map((inv, idx) => `
+                <tr>
+                    <td><span class="font-mono font-bold text-teal-700 text-[11px]">${inv.invoiceNo || '-'}</span></td>
+                    <td class="text-slate-500">${fmtDate(inv.date)}</td>
+                    <td class="font-semibold text-slate-700 max-w-[150px] truncate" title="${inv.buyerName||''}">${inv.buyerName || '-'}</td>
+                    <td class="text-slate-400 font-mono text-[11px]">${inv.challanNo || '-'}</td>
+                    <td class="text-right font-bold text-slate-800 pr-5">${fmtINR(parseFloat(inv.grandTotal)||0)}</td>
+                    <td class="text-slate-400 text-[11px]">${inv.username || '-'}</td>
+                    <td class="text-center">
+                        <button onclick="openInvoiceModal(${idx})" class="px-3 py-1.5 text-[11px] font-bold bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg border border-teal-200 transition-all">View</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function summaryCards(invArr, countId, revId, avgId) {
+            const count = invArr.length;
+            const rev   = invArr.reduce((s, i) => s + (parseFloat(i.grandTotal)||0), 0);
+            const avg   = count ? rev / count : 0;
+            document.getElementById(countId).textContent = count;
+            document.getElementById(revId).textContent   = fmtINR(rev);
+            document.getElementById(avgId).textContent   = fmtINR(avg);
+        }
+
+        // ── MONTH FILTER ──────────────────────────────────────────────────────────
+        function applyMonthFilter() {
+            const val = document.getElementById('filter-month').value;
+            if (!val) { showToast('Please select a month', 'error'); return; }
+            const filtered = repAllInvoices.filter(inv => getMonthKey(inv.date) === val);
+            document.getElementById('month-report-body').innerHTML = reportTableRows(filtered);
+            summaryCards(filtered, 'ms-count', 'ms-revenue', 'ms-avg');
+            document.getElementById('month-summary-cards').classList.remove('hidden');
+        }
+
+        function clearMonthFilter() {
+            document.getElementById('filter-month').value = '';
+            document.getElementById('month-report-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Select a month and click Apply Filter</td></tr>';
+            document.getElementById('month-summary-cards').classList.add('hidden');
+        }
+
+        // ── YEAR FILTER ───────────────────────────────────────────────────────────
+        function applyYearFilter() {
+            const fy = document.getElementById('filter-fy').value;
+            const cy = document.getElementById('filter-cy').value;
+            if (!fy && !cy) { showToast('Please select a Financial Year or Calendar Year', 'error'); return; }
+
+            let filtered;
+            if (fy) {
+                const parts  = fy.split('-');
+                const startY = 2000 + parseInt(parts[0]);
+                filtered = repAllInvoices.filter(inv => {
+                    const d = new Date(inv.date);
+                    if (isNaN(d)) return false;
+                    const m = d.getMonth();
+                    const y = d.getFullYear();
+                    return (m >= 3 ? y : y - 1) === startY;
+                });
+            } else {
+                filtered = repAllInvoices.filter(inv => {
+                    const d = new Date(inv.date);
+                    return !isNaN(d) && String(d.getFullYear()) === cy;
+                });
+            }
+
+            document.getElementById('year-report-body').innerHTML = reportTableRows(filtered);
+            summaryCards(filtered, 'ys-count', 'ys-revenue', 'ys-avg');
+            document.getElementById('year-summary-cards').classList.remove('hidden');
+
+            const monthMap = {};
+            filtered.forEach(inv => {
+                const k = getMonthKey(inv.date);
+                if (k) monthMap[k] = (monthMap[k]||0) + (parseFloat(inv.grandTotal)||0);
+            });
+            const sortedKeys = Object.keys(monthMap).sort();
+            if (repYearChartInstance) { repYearChartInstance.destroy(); repYearChartInstance = null; }
+            document.getElementById('year-chart-wrap').classList.remove('hidden');
+            repYearChartInstance = new Chart(document.getElementById('year-month-chart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedKeys.map(getMonthLabel),
+                    datasets: [{ label: 'Revenue (₹)', data: sortedKeys.map(k => Math.round(monthMap[k])), backgroundColor: '#0d9488', borderRadius: 5, borderSkipped: false }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ₹' + ctx.raw.toLocaleString('en-IN') } } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+                        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmtINR(v) }, border: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function clearYearFilter() {
+            document.getElementById('filter-fy').value = '';
+            document.getElementById('filter-cy').value = '';
+            document.getElementById('year-report-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Select a year and click Apply Filter</td></tr>';
+            document.getElementById('year-summary-cards').classList.add('hidden');
+            document.getElementById('year-chart-wrap').classList.add('hidden');
+            if (repYearChartInstance) { repYearChartInstance.destroy(); repYearChartInstance = null; }
+        }
+
+        // ── BUYER FILTER ──────────────────────────────────────────────────────────
+        function onBuyerFilterInput(val) {
+            const suggBox = document.getElementById('buyer-filter-suggestions');
+            if (val.trim().length < 1) { suggBox.classList.add('hidden'); return; }
+            const names = [...new Set(repAllInvoices.map(i => i.buyerName).filter(n => n && n.toLowerCase().includes(val.toLowerCase())))];
+            if (!names.length) { suggBox.classList.add('hidden'); return; }
+            suggBox.innerHTML = names.slice(0, 10).map(n => `
+                <div class="px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm font-medium text-slate-700 transition-colors"
+                     onmousedown="event.preventDefault(); document.getElementById('filter-buyer').value='${n.replace(/'/g,"\\'")}'; document.getElementById('buyer-filter-suggestions').classList.add('hidden');">
+                    ${n}
+                </div>
+            `).join('');
+            suggBox.classList.remove('hidden');
+        }
+
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#filter-buyer') && !e.target.closest('#buyer-filter-suggestions')) {
+                const b = document.getElementById('buyer-filter-suggestions');
+                if (b) b.classList.add('hidden');
+            }
+            if (!e.target.closest('#challan-modal')) {
+                // modal close handled by button only
+            }
+        });
+
+        function applyBuyerFilter() {
+            const val = (document.getElementById('filter-buyer').value || '').trim().toLowerCase();
+            if (!val) { showToast('Please enter a buyer name', 'error'); return; }
+            const filtered = repAllInvoices.filter(inv => (inv.buyerName || '').toLowerCase().includes(val));
+            document.getElementById('buyer-report-body').innerHTML = reportTableRows(filtered);
+            summaryCards(filtered, 'bs-count', 'bs-revenue', 'bs-avg');
+            document.getElementById('buyer-summary-cards').classList.remove('hidden');
+        }
+
+        function clearBuyerFilter() {
+            document.getElementById('filter-buyer').value = '';
+            document.getElementById('buyer-report-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Search for a buyer and click Apply Filter</td></tr>';
+            document.getElementById('buyer-summary-cards').classList.add('hidden');
+        }
+
+        // ── ALL INVOICES FILTER ───────────────────────────────────────────────────
+        function applyAllFilter() {
+            const search  = (document.getElementById('filter-all-search').value || '').toLowerCase();
+            const fromVal = document.getElementById('filter-all-from').value;
+            const toVal   = document.getElementById('filter-all-to').value;
+            const from    = fromVal ? new Date(fromVal) : null;
+            const to      = toVal   ? new Date(toVal + 'T23:59:59') : null;
+
+            repAllFiltered = repAllInvoices.filter(inv => {
+                const d = new Date(inv.date);
+                if (from && d < from) return false;
+                if (to   && d > to)   return false;
+                if (search && !(
+                    (inv.invoiceNo||'').toLowerCase().includes(search) ||
+                    (inv.buyerName||'').toLowerCase().includes(search) ||
+                    (inv.challanNo||'').toLowerCase().includes(search)
+                )) return false;
+                return true;
+            });
+
+            const rev = repAllFiltered.reduce((s,i) => s+(parseFloat(i.grandTotal)||0), 0);
+            document.getElementById('all-summary-row').textContent = `Showing ${repAllFiltered.length} invoice${repAllFiltered.length!==1?'s':''} · Total: ${fmtINR(rev)}`;
+            document.getElementById('all-report-body').innerHTML = allInvoiceTableRows(repAllFiltered);
+        }
+
+        function clearAllFilter() {
+            document.getElementById('filter-all-search').value = '';
+            document.getElementById('filter-all-from').value   = '';
+            document.getElementById('filter-all-to').value     = '';
+            applyAllFilter();
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // ── CHALLAN TAB LOGIC ─────────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════════
+
+        function applyChallanFilter() {
+            const search  = (document.getElementById('challan-search').value || '').toLowerCase();
+            const fromVal = document.getElementById('challan-from').value;
+            const toVal   = document.getElementById('challan-to').value;
+            const from    = fromVal ? new Date(fromVal) : null;
+            const to      = toVal   ? new Date(toVal + 'T23:59:59') : null;
+
+            repChallanFiltered = repAllChallans.filter(ch => {
+                const d = new Date(ch.date);
+                if (from && d < from) return false;
+                if (to   && d > to)   return false;
+                if (search && !(
+                    (ch.challanNo||'').toLowerCase().includes(search) ||
+                    (ch.buyerName||'').toLowerCase().includes(search) ||
+                    (ch.refInvoiceNo||'').toLowerCase().includes(search)
+                )) return false;
+                return true;
+            });
+
+            renderChallanTable(repChallanFiltered);
+        }
+
+        function clearChallanFilter() {
+            document.getElementById('challan-search').value = '';
+            document.getElementById('challan-from').value   = '';
+            document.getElementById('challan-to').value     = '';
+            applyChallanFilter();
+        }
+
+        function renderChallanTable(arr) {
+            const rev = arr.reduce((s, c) => s + (parseFloat(c.grandTotal)||0), 0);
+            document.getElementById('challan-summary-row').textContent =
+                `Showing ${arr.length} challan${arr.length!==1?'s':''} · Total: ${fmtINR(rev)}`;
+
+            if (!arr.length) {
+                document.getElementById('challan-report-body').innerHTML =
+                    '<tr><td colspan="7" class="text-center py-10 text-slate-400 text-xs">No challans found.</td></tr>';
+                return;
+            }
+
+            document.getElementById('challan-report-body').innerHTML = arr.map((ch, idx) => `
+                <tr>
+                    <td><span class="font-mono font-bold text-amber-700 text-[11px]">${ch.challanNo || '-'}</span></td>
+                    <td class="text-slate-500">${fmtDate(ch.date)}</td>
+                    <td class="font-semibold text-slate-700 max-w-[140px] truncate" title="${ch.buyerName||''}">${ch.buyerName || '-'}</td>
+                    <td class="text-slate-400 font-mono text-[11px]">${ch.refInvoiceNo || '-'}</td>
+                    <td class="text-right font-bold text-slate-800 pr-5">${fmtINR(parseFloat(ch.grandTotal)||0)}</td>
+                    <td class="text-slate-400 text-[11px]">${ch.username || '-'}</td>
+                    <td class="text-center">
+                        <button onclick="openChallanModal(${idx})" class="px-3 py-1.5 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg border border-amber-200 transition-all">View</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openChallanModal(idx) {
+            const ch = repChallanFiltered.length ? repChallanFiltered[idx] : repAllChallans[idx];
+            if (!ch) return;
+            currentChallanDetail = ch;
+
+            document.getElementById('cm-challan-no').textContent  = ch.challanNo || '-';
+            document.getElementById('cm-date').textContent        = fmtDate(ch.date);
+            document.getElementById('cm-buyer-name').textContent  = ch.buyerName || '-';
+            document.getElementById('cm-buyer-phone').textContent = ch.buyerPhone ? 'Ph: ' + ch.buyerPhone : '';
+            document.getElementById('cm-buyer-email').textContent = ch.buyerEmail || '';
+            document.getElementById('cm-subtotal').textContent    = fmtINR(parseFloat(ch.subTotal)||0);
+            document.getElementById('cm-tax').textContent         = fmtINR(parseFloat(ch.taxAmount)||0);
+            document.getElementById('cm-grand').textContent       = fmtINR(parseFloat(ch.grandTotal)||0);
+
+            const items = (() => { try { return JSON.parse(ch.items || '[]'); } catch(e) { return []; } })();
+            document.getElementById('cm-items-body').innerHTML = items.length
+                ? items.map((it, i) => `
+                    <tr>
+                        <td>${i+1}</td>
+                        <td class="font-semibold">${it.desc||'-'}</td>
+                        <td class="font-mono">${it.hsn||'-'}</td>
+                        <td>${it.qty} ${it.per||''}</td>
+                        <td class="text-right">₹${parseFloat(it.rate||0).toFixed(2)}</td>
+                        <td class="text-right pr-4 font-bold">₹${parseFloat(it.amount||0).toFixed(2)}</td>
+                    </tr>`).join('')
+                : '<tr><td colspan="6" class="text-center py-4 text-slate-400 text-xs">No items data</td></tr>';
+
+            document.getElementById('challan-modal').classList.remove('hidden');
+        }
+
+        function closeChallanModal() {
+            document.getElementById('challan-modal').classList.add('hidden');
+            currentChallanDetail = null;
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('challan-modal') && document.getElementById('challan-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeChallanModal();
+        });
+
+        // ── CHALLAN PRINT WINDOW ──────────────────────────────────────────────────
+        function printChallanWindow() {
+            if (!currentChallanDetail) return;
+            const ch         = currentChallanDetail;
+            const items      = (() => { try { return JSON.parse(ch.items || '[]'); } catch(e) { return []; } })();
+            const grandTotal = parseFloat(ch.grandTotal) || 0;
+            const wordsStr   = 'INR ' + numberToWords(Math.round(grandTotal));
+
+            const itemRows = items.map((it, idx) => `
+                <div class="flex min-h-[18px]">
+                    <div class="w-[8%] p-1 text-center">${idx + 1}</div>
+                    <div class="w-[42%] p-1 pl-2 font-bold">${it.desc || '---------------------'}</div>
+                    <div class="w-[12%] p-1 text-center">${it.hsn || '-'}</div>
+                    <div class="w-[10%] p-1 text-right pr-2"><b>${it.qty}</b> ${it.per || 'Nos'}</div>
+                    <div class="w-[10%] p-1 text-right pr-2">${parseFloat(it.rate || 0).toFixed(2)}</div>
+                    <div class="w-[6%] p-1 text-center">${it.per || 'Nos'}</div>
+                    <div class="w-[12%] p-1 text-right font-bold pr-2">${parseFloat(it.amount || 0).toFixed(2)}</div>
+                </div>`).join('');
+
+            const taxAmount = parseFloat(ch.taxAmount || 0);
+            const cgstAmt   = taxAmount / 2;
+            const sgstAmt   = taxAmount / 2;
+
+            const taxRows = `
+                <div class="flex mt-6 font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">CGST</div>
+                    <div class="w-[12%] p-1"></div><div class="w-[10%] p-1"></div><div class="w-[10%] p-1"></div><div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${cgstAmt.toFixed(2)}</div>
+                </div>
+                <div class="flex font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">SGST</div>
+                    <div class="w-[12%] p-1"></div><div class="w-[10%] p-1"></div><div class="w-[10%] p-1"></div><div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${sgstAmt.toFixed(2)}</div>
+                </div>`;
+
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Challan ${ch.challanNo || ''}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box !important; }
+        .tally-border   { border: 1px solid #000 !important; }
+        .tally-border-b { border-bottom: 1px solid #000 !important; }
+        .tally-border-t { border-top: 1px solid #000 !important; }
+        .tally-border-r { border-right: 1px solid #000 !important; }
+        .tally-border-l { border-left: 1px solid #000 !important; }
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; display: block !important; }
+            #printable-challan {
+                position: absolute !important; left: 0 !important; top: 0 !important;
+                width: 190mm !important; max-width: 190mm !important;
+                height: 277mm !important; min-height: 277mm !important; max-height: 277mm !important;
+                margin: 0 auto !important; padding: 0 !important;
+                box-shadow: none !important; background: white !important;
+                page-break-inside: avoid !important;
+                display: flex !important; flex-direction: column !important;
+            }
+            #items-table-container { flex-grow: 1 !important; height: auto !important; }
+            @page { size: A4 portrait; margin: 10mm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-scheme: light !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans flex items-start justify-center p-6">
+<div id="printable-challan" class="bg-white shadow-xl" style="width:190mm;max-width:190mm;min-height:277mm;height:277mm;max-height:277mm;font-size:10px;display:flex;flex-direction:column;">
+    <div class="tally-border" style="flex:1;display:flex;flex-direction:column;">
+        <div class="text-center font-bold text-lg py-1 tally-border-b underline tracking-wider bg-white">DELIVERY CHALLAN</div>
+        <div class="flex tally-border-b" style="min-height:135px;">
+            <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
+                <div>
+                    <div class="font-bold text-sm uppercase">${state.company.name}</div>
+                    <div class="mt-1 font-medium">${state.company.address}</div>
+                    <div class="mt-1 font-medium text-[9px]"><span class="font-bold">Ph:</span> ${state.company.phone} | <span class="font-bold">Email:</span> ${state.company.email}</div>
+                    <div class="font-medium text-[9px]"><span class="font-bold">Web:</span> ${state.company.website}</div>
+                    <div class="mt-1"><span class="font-bold">GSTIN/UIN: </span>${state.company.gstin}</div>
+                    <div><span class="font-bold">State Name: </span>${state.company.state}, <span class="font-bold">Code:</span> ${state.company.stateCode}</div>
+                </div>
+            </div>
+            <div class="w-1/2 flex flex-col">
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Challan No.</div><div class="font-bold text-xs">${ch.challanNo || '-'}</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Dated</div><div class="font-semibold">${fmtDate(ch.date)}</div></div>
+                </div>
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Ref. Invoice No.</div><div class="font-semibold">${ch.refInvoiceNo || '-'}</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Mode of Transport</div><div>-</div></div>
+                </div>
+                <div class="flex flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Supplier's Ref.</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Other Reference(s)</div><div>-</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="flex tally-border-b" style="min-height:115px;">
+            <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
+                <div>
+                    <div class="font-bold text-[9px] uppercase tracking-wide text-gray-500">Consignee (Ship to)</div>
+                    <div class="font-bold text-sm uppercase mt-1">${ch.buyerName || '-----------'}</div>
+                    ${ch.buyerPhone ? '<div class="mt-1"><span class="font-bold">Ph: </span>' + ch.buyerPhone + '</div>' : ''}
+                    ${ch.buyerEmail ? '<div><span class="font-bold">Email: </span>' + ch.buyerEmail + '</div>' : ''}
+                </div>
+            </div>
+            <div class="w-1/2 flex flex-col">
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Dispatch Doc. No.</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Delivery Note Date</div><div>-</div></div>
+                </div>
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Dispatched through</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Destination</div><div>-</div></div>
+                </div>
+                <div class="flex flex-1">
+                    <div class="w-full p-1 pl-2"><div class="font-bold">Terms of Delivery</div><div>-</div></div>
+                </div>
+            </div>
+        </div>
+        <div id="items-table-container" class="tally-border-b flex-grow flex flex-col relative" style="min-height:280px;">
+            <div class="absolute top-0 bottom-0 left-0 w-full flex pointer-events-none">
+                <div class="w-[8%] tally-border-r h-full"></div>
+                <div class="w-[42%] tally-border-r h-full"></div>
+                <div class="w-[12%] tally-border-r h-full"></div>
+                <div class="w-[10%] tally-border-r h-full"></div>
+                <div class="w-[10%] tally-border-r h-full"></div>
+                <div class="w-[6%] tally-border-r h-full"></div>
+                <div class="w-[12%] h-full"></div>
+            </div>
+            <div class="w-full flex tally-border-b font-bold text-center z-10 bg-white">
+                <div class="w-[8%] tally-border-r p-1">Sl No.</div>
+                <div class="w-[42%] tally-border-r p-1 text-left pl-2">Description of Goods</div>
+                <div class="w-[12%] tally-border-r p-1">HSN/SAC</div>
+                <div class="w-[10%] tally-border-r p-1">Quantity</div>
+                <div class="w-[10%] tally-border-r p-1">Rate</div>
+                <div class="w-[6%] tally-border-r p-1">per</div>
+                <div class="w-[12%] p-1 text-right pr-2">Amount</div>
+            </div>
+            <div class="w-full flex-1 z-10 pt-1 overflow-hidden">
+                ${itemRows}${taxRows}
+            </div>
+        </div>
+        <div class="flex tally-border-b font-bold bg-white">
+            <div class="w-[8%] p-1"></div>
+            <div class="w-[42%] p-1 text-right pr-2">Total</div>
+            <div class="w-[12%] p-1"></div>
+            <div class="w-[10%] p-1"></div>
+            <div class="w-[10%] p-1"></div>
+            <div class="w-[6%] p-1"></div>
+            <div class="w-[12%] p-1 text-right pr-2 tally-border-l">&#8377; ${grandTotal.toFixed(2)}</div>
+        </div>
+        <div class="tally-border-b p-2 bg-white">
+            <div class="font-bold text-[10px] uppercase text-gray-500">Amount Chargeable (in words)</div>
+            <div class="font-bold text-[11px] mt-1">${wordsStr}</div>
+        </div>
+        <div class="tally-border-b flex">
+            <div class="w-1/2 tally-border-r p-2">
+                <div class="font-bold underline mb-1">Declaration</div>
+                <div class="text-justify text-[9px] leading-tight text-gray-700">We declare that this challan shows the actual description of goods delivered and that all particulars are true and correct.</div>
+                <div class="mt-2">
+                    <div class="font-bold text-[10px] underline mb-1">Bank Details</div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">Bank Name: </span>State Bank of India</div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">IFSC Code: </span><span class="font-mono">SBIN0001234</span></div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">Account No: </span><span class="font-mono">123456789012</span></div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">UPI ID: </span>gmenterprises@sbi</div>
+                </div>
+            </div>
+            <div class="w-1/2 p-2 relative flex flex-col justify-between">
+                <div class="text-right font-bold text-[10px]">for ${state.company.name}</div>
+                <div class="text-right font-bold mt-14 pb-1">Authorised Signatory</div>
+            </div>
+        </div>
+        <div class="text-center py-1 text-[9px] font-semibold text-gray-600">SUBJECT TO MAHARASHTRA JURISDICTION</div>
+        <div class="text-center pb-1 text-[9px] text-gray-500">This is a Computer Generated Delivery Challan</div>
+    </div>
+</div>
+<script>window.onload = () => { window.print(); };<\/script>
+</body>
+</html>`;
+
+            const w = window.open('', '_blank', 'width=960,height=800');
+            if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+            else   { showToast('Popup blocked. Please allow popups and try again.', 'error'); }
+        }
+
+        // ── CHALLAN EXCEL DOWNLOAD ────────────────────────────────────────────────
+        function downloadChallanExcel() {
+            const data = repChallanFiltered.length > 0 ? repChallanFiltered : repAllChallans;
+
+            if (!data.length) {
+                showToast('No challan data to export.', 'error');
+                return;
+            }
+
+            const headers = ['Challan No.', 'Date', 'Buyer Name', 'Buyer Phone', 'Buyer Email', 'Ref. Invoice No.', 'Sub Total (₹)', 'Tax Amount (₹)', 'Grand Total (₹)', 'Saved By'];
+            const rows = data.map(ch => [
+                ch.challanNo     || '',
+                fmtDate(ch.date),
+                ch.buyerName     || '',
+                ch.buyerPhone    || '',
+                ch.buyerEmail    || '',
+                ch.refInvoiceNo  || '',
+                parseFloat(ch.subTotal   || 0),
+                parseFloat(ch.taxAmount  || 0),
+                parseFloat(ch.grandTotal || 0),
+                ch.username      || ''
+            ]);
+
+            const totalRev = data.reduce((s, c) => s + (parseFloat(c.grandTotal)||0), 0);
+            rows.push(['', '', '', '', '', 'TOTAL', '', '', totalRev, '']);
+
+            const wsData = [headers, ...rows];
+            const ws     = XLSX.utils.aoa_to_sheet(wsData);
+            const range  = XLSX.utils.decode_range(ws['!ref']);
+            const currencyCols = [6, 7, 8];
+
+            for (let R = range.s.r; R <= range.e.r; R++) {
+                for (let C = range.s.c; C <= range.e.c; C++) {
+                    const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cellRef]) continue;
+                    if (!ws[cellRef].s) ws[cellRef].s = {};
+                    const isHeader = (R === 0);
+                    const isTotal  = (R === range.e.r);
+                    if (isHeader || isTotal) {
+                        ws[cellRef].s.font = { bold: true };
+                        ws[cellRef].s.fill = { fgColor: { rgb: isHeader ? '78350F' : 'FEF3C7' } };
+                        if (isHeader) ws[cellRef].s.font.color = { rgb: 'FFFFFF' };
+                    }
+                    if (currencyCols.includes(C) && R > 0) {
+                        ws[cellRef].z = '#,##0.00';
+                    }
+                }
+            }
+
+            ws['!cols'] = [
+                { wch: 18 }, // Challan No
+                { wch: 14 }, // Date
+                { wch: 28 }, // Buyer Name
+                { wch: 16 }, // Phone
+                { wch: 24 }, // Email
+                { wch: 18 }, // Ref Invoice
+                { wch: 16 }, // Sub Total
+                { wch: 15 }, // Tax
+                { wch: 16 }, // Grand Total
+                { wch: 14 }, // Saved By
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Challan Report');
+
+            const now   = new Date();
+            const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `GME_Challan_Report_${stamp}.xlsx`);
+            showToast(`Downloaded ${data.length} challan${data.length !== 1 ? 's' : ''} as Excel.`, 'success');
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // ── INVOICE REPRINT LOGIC ─────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════════
+
+        async function fetchInvoiceForReprint() {
+            const invNo   = (document.getElementById('reprint-inv-input').value || '').trim();
+            const spinner = document.getElementById('reprint-fetch-spinner');
+            const errBox  = document.getElementById('reprint-error');
+            const card    = document.getElementById('reprint-preview-card');
+
+            errBox.classList.add('hidden');
+            card.classList.add('hidden');
+            currentReprintInvoice = null;
+
+            if (!invNo) { errBox.textContent = 'Please enter an Invoice Number.'; errBox.classList.remove('hidden'); return; }
+
+            spinner.classList.remove('hidden');
+
+            try {
+                const token = sessionStorage.getItem('gme_token') || '';
+                let found = repAllInvoices.find(inv =>
+                    (inv.invoiceNo || '').trim().toLowerCase() === invNo.toLowerCase()
+                );
+
+                if (!found && repAllInvoices.length === 0) {
+                    try {
+                        const res  = await fetch(googleScriptUrl + '?action=getDashboard&token=' + encodeURIComponent(token));
+                        const data = await res.json();
+                        if (data.sessionExpired) { doLogout(); return; }
+                        repAllInvoices = (data.invoices || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+                        populateYearSelectors();
+                    } catch(e) {}
+                    found = repAllInvoices.find(inv =>
+                        (inv.invoiceNo || '').trim().toLowerCase() === invNo.toLowerCase()
+                    );
+                }
+
+                if (!found) {
+                    try {
+                        const res  = await fetch(googleScriptUrl + '?action=getInvoiceByNo&invoiceNo=' + encodeURIComponent(invNo) + '&token=' + encodeURIComponent(token));
+                        const data = await res.json();
+                        if (data.sessionExpired) { doLogout(); return; }
+                        if (data.invoice) found = data.invoice;
+                    } catch(e) {}
+                }
+
+                if (!found) {
+                    errBox.textContent = `Invoice "${invNo}" not found. Check the invoice number and try again.`;
+                    errBox.classList.remove('hidden');
+                    return;
+                }
+
+                currentReprintInvoice = found;
+                renderReprintCard(found);
+                card.classList.remove('hidden');
+
+            } catch(e) {
+                errBox.textContent = 'Connection error. Please try again.';
+                errBox.classList.remove('hidden');
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        function renderReprintCard(inv) {
+            document.getElementById('rp-inv-no').textContent      = inv.invoiceNo || '-';
+            document.getElementById('rp-inv-date').textContent    = fmtDate(inv.date);
+            document.getElementById('rp-buyer-name').textContent  = inv.buyerName || '-';
+            document.getElementById('rp-buyer-address').textContent = inv.buyerAddress || '';
+            document.getElementById('rp-buyer-gstin').textContent = inv.buyerGstin || '';
+            document.getElementById('rp-subtotal').textContent    = fmtINR(parseFloat(inv.subTotal)||0);
+            document.getElementById('rp-tax').textContent         = fmtINR(parseFloat(inv.taxAmount)||0);
+            document.getElementById('rp-grand').textContent       = fmtINR(parseFloat(inv.grandTotal)||0);
+
+            const items = (() => { try { return JSON.parse(inv.items || '[]'); } catch(e) { return []; } })();
+            document.getElementById('rp-items-body').innerHTML = items.length
+                ? items.map((it, i) => `
+                    <tr>
+                        <td>${i+1}</td>
+                        <td class="font-semibold">${it.desc||'-'}</td>
+                        <td class="font-mono">${it.hsn||'-'}</td>
+                        <td>${it.qty} ${it.per||''}</td>
+                        <td class="text-right">₹${parseFloat(it.rate||0).toFixed(2)}</td>
+                        <td class="text-right pr-4 font-bold">₹${parseFloat(it.amount||0).toFixed(2)}</td>
+                    </tr>`).join('')
+                : '<tr><td colspan="6" class="text-center py-4 text-slate-400 text-xs">No items data</td></tr>';
+        }
+
+        function triggerReprintWindow() {
+            if (!currentReprintInvoice) return;
+            const inv        = currentReprintInvoice;
+            const items      = (() => { try { return JSON.parse(inv.items || '[]'); } catch(e) { return []; } })();
+            const grandTotal = parseFloat(inv.grandTotal) || 0;
+            const wordsStr   = 'INR ' + numberToWords(Math.round(grandTotal));
+
+            let cgstAmt = parseFloat(inv.cgstAmount || 0);
+            let sgstAmt = parseFloat(inv.sgstAmount || 0);
+            let igstAmt = parseFloat(inv.igstAmount || 0);
+            const cgstRate = parseFloat(inv.cgstRate || 0);
+            const sgstRate = parseFloat(inv.sgstRate || 0);
+            const igstRate = parseFloat(inv.igstRate || 0);
+
+            if (cgstAmt === 0 && sgstAmt === 0) {
+                const taxTotal = parseFloat(inv.taxAmount || 0);
+                cgstAmt = taxTotal / 2;
+                sgstAmt = taxTotal / 2;
+            }
+
+            const itemRows = items.map((it, idx) => `
+                <div class="flex min-h-[18px]">
+                    <div class="w-[8%] p-1 text-center">${idx + 1}</div>
+                    <div class="w-[42%] p-1 pl-2 font-bold">${it.desc || '---------------------'}</div>
+                    <div class="w-[12%] p-1 text-center">${it.hsn || '-'}</div>
+                    <div class="w-[10%] p-1 text-right pr-2"><b>${it.qty}</b> ${it.per || 'Nos'}</div>
+                    <div class="w-[10%] p-1 text-right pr-2">${parseFloat(it.rate || 0).toFixed(2)}</div>
+                    <div class="w-[6%] p-1 text-center">${it.per || 'Nos'}</div>
+                    <div class="w-[12%] p-1 text-right font-bold pr-2">${parseFloat(it.amount || 0).toFixed(2)}</div>
+                </div>`).join('');
+
+            const taxRows = `
+                <div class="flex mt-6 font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">CGST</div>
+                    <div class="w-[12%] p-1"></div>
+                    <div class="w-[10%] p-1 text-right pr-2">${cgstRate > 0 ? cgstRate + '%' : ''}</div>
+                    <div class="w-[10%] p-1"></div>
+                    <div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${cgstAmt.toFixed(2)}</div>
+                </div>
+                <div class="flex font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">SGST</div>
+                    <div class="w-[12%] p-1"></div>
+                    <div class="w-[10%] p-1 text-right pr-2">${sgstRate > 0 ? sgstRate + '%' : ''}</div>
+                    <div class="w-[10%] p-1"></div>
+                    <div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${sgstAmt.toFixed(2)}</div>
+                </div>
+                ${igstAmt > 0 ? `
+                <div class="flex font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">IGST</div>
+                    <div class="w-[12%] p-1"></div>
+                    <div class="w-[10%] p-1 text-right pr-2">${igstRate > 0 ? igstRate + '%' : ''}</div>
+                    <div class="w-[10%] p-1"></div>
+                    <div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${igstAmt.toFixed(2)}</div>
+                </div>` : ''}`;
+
+            const buyerAddress = inv.buyerAddress || '';
+            const buyerGstin   = inv.buyerGstin   || '-----------';
+            const buyerPhone   = (inv.buyerPhone  || '').trim();
+            const buyerEmail   = (inv.buyerEmail  || '').trim();
+
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice ${inv.invoiceNo || ''}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box !important; }
+        .tally-border   { border: 1px solid #000000 !important; }
+        .tally-border-b { border-bottom: 1px solid #000000 !important; }
+        .tally-border-t { border-top: 1px solid #000000 !important; }
+        .tally-border-r { border-right: 1px solid #000000 !important; }
+        .tally-border-l { border-left: 1px solid #000000 !important; }
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; display: block !important; }
+            #printable-invoice {
+                position: absolute !important; left: 0 !important; top: 0 !important;
+                width: 190mm !important; max-width: 190mm !important;
+                height: 277mm !important; min-height: 277mm !important; max-height: 277mm !important;
+                margin: 0 auto !important; padding: 0 !important;
+                box-shadow: none !important; background: white !important;
+                page-break-inside: avoid !important;
+                display: flex !important; flex-direction: column !important;
+            }
+            #items-table-container { flex-grow: 1 !important; height: auto !important; }
+            @page { size: A4 portrait; margin: 10mm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-scheme: light !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans flex items-start justify-center p-6">
+<div id="printable-invoice" class="bg-white shadow-xl" style="width:190mm;max-width:190mm;min-height:277mm;height:277mm;max-height:277mm;font-size:10px;display:flex;flex-direction:column;">
+    <div class="tally-border" style="flex:1;display:flex;flex-direction:column;">
+        <div class="text-center font-bold text-lg py-1 tally-border-b underline tracking-wider bg-white">TAX INVOICE</div>
+        <div class="flex tally-border-b" style="min-height:135px;">
+            <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
+                <div>
+                    <div class="font-bold text-sm uppercase">${state.company.name}</div>
+                    <div class="mt-1 font-medium">${state.company.address}</div>
+                    <div class="mt-1 font-medium text-[9px]"><span class="font-bold">Ph:</span> ${state.company.phone} <span class="mx-1">|</span> <span class="font-bold">Email:</span> ${state.company.email}</div>
+                    <div class="font-medium text-[9px]"><span class="font-bold">Web:</span> ${state.company.website}</div>
+                    <div class="mt-1"><span class="font-bold">GSTIN/UIN: </span> ${state.company.gstin}</div>
+                    <div><span class="font-bold">State Name: </span> ${state.company.state}, <span class="font-bold">Code:</span> ${state.company.stateCode}</div>
+                </div>
+            </div>
+            <div class="w-1/2 flex flex-col">
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Invoice No.</div><div class="font-bold text-xs">${inv.invoiceNo || '-'}</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Dated</div><div class="font-semibold">${fmtDate(inv.date)}</div></div>
+                </div>
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Delivery Note</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Mode/Terms of Payment</div><div>-</div></div>
+                </div>
+                <div class="flex flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Supplier's Ref.</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Other Reference(s)</div><div>-</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="flex tally-border-b" style="min-height:115px;">
+            <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
+                <div>
+                    <div class="font-bold text-[9px] uppercase tracking-wide text-gray-500">Buyer (Bill to)</div>
+                    <div class="font-bold text-sm uppercase mt-1">${inv.buyerName || '-----------'}</div>
+                    <div class="mt-1">${buyerAddress}</div>
+                    <div class="mt-2"><span class="font-bold">GSTIN/UIN: </span> ${buyerGstin}</div>
+                    <div><span class="font-bold">State Name: </span> ${state.company.state}, <span class="font-bold">Code:</span> ${state.company.stateCode}</div>
+                    ${(buyerPhone || buyerEmail) ? `<div class="mt-1">${buyerPhone ? '<span class="font-bold">Ph: </span>' + buyerPhone : ''}${buyerEmail ? '<span class="ml-3 font-bold">Email: </span>' + buyerEmail : ''}</div>` : ''}
+                </div>
+            </div>
+            <div class="w-1/2 flex flex-col">
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Challan No.</div><div class="font-semibold">${inv.challanNo || '-'}</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Dated</div><div>-</div></div>
+                </div>
+                <div class="flex tally-border-b flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Dispatch Document No.</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Delivery Note Date</div><div>-</div></div>
+                </div>
+                <div class="flex flex-1">
+                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Dispatched through</div><div>-</div></div>
+                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Destination</div><div>-</div></div>
+                </div>
+            </div>
+        </div>
+        <div id="items-table-container" class="tally-border-b flex-grow flex flex-col relative" style="min-height:280px;">
+            <div class="absolute top-0 bottom-0 left-0 w-full flex pointer-events-none">
+                <div class="w-[8%] tally-border-r h-full"></div>
+                <div class="w-[42%] tally-border-r h-full"></div>
+                <div class="w-[12%] tally-border-r h-full"></div>
+                <div class="w-[10%] tally-border-r h-full"></div>
+                <div class="w-[10%] tally-border-r h-full"></div>
+                <div class="w-[6%] tally-border-r h-full"></div>
+                <div class="w-[12%] h-full"></div>
+            </div>
+            <div class="w-full flex tally-border-b font-bold text-center z-10 bg-white">
+                <div class="w-[8%] tally-border-r p-1">Sl No.</div>
+                <div class="w-[42%] tally-border-r p-1 text-left pl-2">Description of Goods</div>
+                <div class="w-[12%] tally-border-r p-1">HSN/SAC</div>
+                <div class="w-[10%] tally-border-r p-1">Quantity</div>
+                <div class="w-[10%] tally-border-r p-1">Rate</div>
+                <div class="w-[6%] tally-border-r p-1">per</div>
+                <div class="w-[12%] p-1 text-right pr-2">Amount</div>
+            </div>
+            <div class="w-full flex-1 z-10 pt-1 overflow-hidden">
+                ${itemRows}${taxRows}
+            </div>
+        </div>
+        <div class="flex tally-border-b font-bold bg-white">
+            <div class="w-[8%] p-1"></div>
+            <div class="w-[42%] p-1 text-right pr-2">Total</div>
+            <div class="w-[12%] p-1"></div>
+            <div class="w-[10%] p-1"></div>
+            <div class="w-[10%] p-1"></div>
+            <div class="w-[6%] p-1"></div>
+            <div class="w-[12%] p-1 text-right pr-2 tally-border-l">&#8377; ${grandTotal.toFixed(2)}</div>
+        </div>
+        <div class="tally-border-b p-2 bg-white">
+            <div class="font-bold text-[10px] uppercase text-gray-500">Amount Chargeable (in words)</div>
+            <div class="font-bold text-[11px] mt-1">${wordsStr}</div>
+        </div>
+        <div class="tally-border-b flex">
+            <div class="w-1/2 tally-border-r p-2">
+                <div class="font-bold underline mb-1">Declaration</div>
+                <div class="text-justify text-[9px] leading-tight text-gray-700">We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+                <div class="mt-2">
+                    <div class="font-bold text-[10px] underline mb-1">Bank Details</div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">Bank Name: </span>State Bank of India</div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">IFSC Code: </span><span class="font-mono">SBIN0001234</span></div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">Account No: </span><span class="font-mono">123456789012</span></div>
+                    <div class="text-[10px] leading-relaxed"><span class="font-bold">UPI ID: </span>gmenterprises@sbi</div>
+                </div>
+            </div>
+            <div class="w-1/2 p-2 relative flex flex-col justify-between">
+                <div class="text-right font-bold text-[10px]">for ${state.company.name}</div>
+                <div class="text-right font-bold mt-14 pb-1">Authorised Signatory</div>
+            </div>
+        </div>
+        <div class="text-center py-1 text-[9px] font-semibold text-gray-600">SUBJECT TO MAHARASHTRA JURISDICTION</div>
+        <div class="text-center pb-1 text-[9px] text-gray-500">This is a Computer Generated Invoice</div>
+    </div>
+</div>
+<script>window.onload = () => { window.print(); };<\/script>
+</body>
+</html>`;
+
+            const w = window.open('', '_blank', 'width=960,height=800');
+            if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+            else   { showToast('Popup blocked. Please allow popups and try again.', 'error'); }
+        }
+
+        // Attach modal close on backdrop after DOM is ready
+        window.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('challan-modal');
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) closeChallanModal();
+                });
+            }
+            const invModal = document.getElementById('invoice-modal');
+            if (invModal) {
+                invModal.addEventListener('click', function(e) {
+                    if (e.target === this) closeInvoiceModal();
+                });
+            }
+        });
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // ── ALL INVOICES MODAL LOGIC ──────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════════
+
+        function openInvoiceModal(idx) {
+            const inv = repAllFiltered.length ? repAllFiltered[idx] : repAllInvoices[idx];
+            if (!inv) return;
+            currentInvoiceDetail = inv;
+
+            document.getElementById('im-invoice-no').textContent  = inv.invoiceNo || '-';
+            document.getElementById('im-date').textContent        = fmtDate(inv.date);
+            document.getElementById('im-buyer-name').textContent  = inv.buyerName || '-';
+            document.getElementById('im-buyer-phone').textContent = inv.buyerPhone ? 'Ph: ' + inv.buyerPhone : '';
+            document.getElementById('im-buyer-email').textContent = inv.buyerEmail || '';
+            document.getElementById('im-subtotal').textContent    = fmtINR(parseFloat(inv.subTotal)||0);
+            document.getElementById('im-tax').textContent         = fmtINR(parseFloat(inv.taxAmount)||0);
+            document.getElementById('im-grand').textContent       = fmtINR(parseFloat(inv.grandTotal)||0);
+            document.getElementById('im-challan-no').textContent  = inv.challanNo || '-';
+
+            const items = (() => { try { return JSON.parse(inv.items || '[]'); } catch(e) { return []; } })();
+            document.getElementById('im-items-body').innerHTML = items.length
+                ? items.map((it, i) => `
+                    <tr>
+                        <td>${i+1}</td>
+                        <td class="font-semibold">${it.desc||'-'}</td>
+                        <td class="font-mono">${it.hsn||'-'}</td>
+                        <td>${it.qty} ${it.per||''}</td>
+                        <td class="text-right">₹${parseFloat(it.rate||0).toFixed(2)}</td>
+                        <td class="text-right pr-4 font-bold">₹${parseFloat(it.amount||0).toFixed(2)}</td>
+                    </tr>`).join('')
+                : '<tr><td colspan="6" class="text-center py-4 text-slate-400 text-xs">No items data</td></tr>';
+
+            document.getElementById('invoice-modal').classList.remove('hidden');
+        }
+
+        function closeInvoiceModal() {
+            document.getElementById('invoice-modal').classList.add('hidden');
+            currentInvoiceDetail = null;
+        }
+
+        function printInvoiceFromModal() {
+            if (!currentInvoiceDetail) return;
+            // Reuse existing triggerReprintWindow logic by temporarily setting currentReprintInvoice
+            const saved = currentReprintInvoice;
+            currentReprintInvoice = currentInvoiceDetail;
+            triggerReprintWindow();
+            currentReprintInvoice = saved;
+        }
+    </script>
+</body>
+</html>
