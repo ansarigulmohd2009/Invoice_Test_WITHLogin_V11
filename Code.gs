@@ -1,388 +1,1131 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// G.M. ENTERPRISES — Google Apps Script (SECURED VERSION)
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// HOW TO SET UP (do this once before deploying):
-//
-// 1. In Apps Script editor → Project Settings (gear icon) → Script Properties
-//    Add these properties:
-//
-//    API_SECRET       →  any long random string, e.g. "gme_k9x2mPqR7vLtN4wZ"
-//    USER_admin       →  your admin password, e.g. "Admin@2024"
-//    USER_manager     →  another user's password  (add as many as needed)
-//
-//    USER_ prefix + username = the key. Value = the password.
-//    Example: username "ravi" → key "USER_ravi", value "Ravi@pass123"
-//
-// 2. Deploy → New Deployment → Web App
-//    Execute as: Me
-//    Who has access: Anyone
-//    Click Deploy and copy the URL into your HTML files.
-//
-// 3. Every time you change this script, click "Deploy → Manage Deployments
-//    → Edit (pencil) → Version: New version → Deploy" to apply changes.
-//
-// ═══════════════════════════════════════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G.M. Enterprises - Invoice App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box !important; }
+        
+        .tally-border { border: 1px solid #000000 !important; }
+        .tally-border-b { border-bottom: 1px solid #000000 !important; }
+        .tally-border-t { border-top: 1px solid #000000 !important; }
+        .tally-border-r { border-right: 1px solid #000000 !important; }
+        .tally-border-l { border-left: 1px solid #000000 !important; }
 
-// ── Active sessions: { token → { username, displayName, expiresAt } } ──────
-// NOTE: This is in-memory. Sessions reset when the script is evicted (~30 min
-// of inactivity). That is acceptable — users will just be asked to log in again.
-const SESSIONS = {};
-const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+        /* ══════════════════════════════════════════════════════════ */
+        /* PRINT ENGINE FROM V2 (Strict Isolation)                    */
+        /* ══════════════════════════════════════════════════════════ */
+        @media print {
+            .print-hidden, .print\:hidden, #toast-container, #form-panel, #login-overlay, #mobile-tab-bar, #dashboard-overlay, #reports-overlay { 
+                display: none !important; 
+            }
+            body { 
+                background: white !important; 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                overflow: visible !important;
+                height: auto !important;
+                display: block !important;
+            }
+            #app-workspace,
+            #app-workspace > div {
+                display: block !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            #preview-panel {
+                display: block !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                background: white !important;
+            }
+            #preview-panel > div {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            #printable-invoice {
+                visibility: visible !important;
+                position: relative !important;
+                width: 190mm !important;
+                max-width: 190mm !important;
+                height: 277mm !important;
+                min-height: 277mm !important;
+                max-height: 277mm !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                background: white !important;
+                page-break-inside: avoid !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            @page { 
+                size: A4 portrait;
+                margin: 10mm;
+            }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-scheme: light !important;
+            }
+            #items-table-container {
+                flex-grow: 1 !important;
+                height: auto !important;
+            }
+        }
 
-// ── Sheet names ──────────────────────────────────────────────────────────────
-const SHEET_INVOICES = 'Invoices';
-const SHEET_CHALLANS = 'Challans';
-const SHEET_BUYERS   = 'Buyers';
+        /* UI Scrollbars */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function jsonOut(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+        /* ══════════════════════════════════════════════════════════ */
+        /* DASHBOARD STYLES FROM V1                                   */
+        /* ══════════════════════════════════════════════════════════ */
+        #dashboard-overlay { display: none; }
+        #dashboard-overlay.open { display: flex; }
+        #reports-overlay { display: none; }
+        #reports-overlay.open { display: flex; }
+        .dash-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.1rem 1.25rem; }
+        .dash-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin-bottom: 4px; }
+        .dash-stat-value { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; }
+        .dash-stat-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; font-weight: 500; }
+        .dash-table th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+        .dash-table td { font-size: 12px; padding: 9px 10px; border-bottom: 1px solid #f8fafc; color: #334155; vertical-align: middle; }
+        .dash-table tr:last-child td { border-bottom: none; }
+        .dash-table tr:hover td { background: #f8fafc; }
+        .dash-badge { display:inline-flex; align-items:center; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+        .dash-badge.blue  { background:#dbeafe; color:#1d4ed8; }
+        .dash-skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans h-screen flex flex-col overflow-hidden text-slate-900 antialiased">
 
-function getProps() {
-  return PropertiesService.getScriptProperties().getProperties();
-}
+    <div id="login-overlay" class="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center">
+        <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none"></div>
+        <div class="bg-white rounded-2xl p-10 w-full max-w-sm shadow-[0_30px_60px_rgba(0,0,0,0.45)] relative z-10 mx-4">
+            <div class="text-center mb-8">
+                <div class="text-4xl leading-none mb-2">🏢</div>
+                <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">G.M. Enterprises</h1>
+                <p class="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">Invoice Management System</p>
+            </div>
 
-function generateToken() {
-  return Utilities.getUuid().replace(/-/g, '') + Date.now().toString(36);
-}
+            <div id="login-error" class="hidden bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-sm font-medium mb-4"></div>
 
-// Validate that a request carries a live session token.
-// Returns the session object { username, displayName } or null.
-function validateSession(token) {
-  if (!token) return null;
-  const session = SESSIONS[token];
-  if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    delete SESSIONS[token];
-    return null;
-  }
-  // Slide the expiry on activity
-  session.expiresAt = Date.now() + SESSION_TTL_MS;
-  return session;
-}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Username</label>
+                    <input type="text" id="login-username" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 text-slate-800 font-medium" autocomplete="username" placeholder="Enter username" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 text-slate-800 font-medium pr-10" autocomplete="current-password" placeholder="Enter password" onkeydown="if(event.key==='Enter') doLogin()" />
+                        <button type="button" onclick="toggleLoginPwd()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+                    </div>
+                </div>
+                <button id="login-btn" onclick="doLogin()" class="w-full bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-bold py-2.5 rounded-lg text-sm transition-all mt-2">
+                    Sign In
+                </button>
+            </div>
+            <p class="text-center text-[10px] text-slate-300 mt-8 font-medium">Developed by Itransform Technology</p>
+        </div>
+    </div>
 
-// Validate the shared API_SECRET sent with every request.
-function validateSecret(secret) {
-  const expected = getProps()['API_SECRET'] || '';
-  return expected !== '' && secret === expected;
-}
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-function getSheet(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName(name);
-}
+    <div id="app-workspace" class="hidden h-full w-full flex-col overflow-hidden">
 
-// ── CORS headers (applied to all responses via HtmlService workaround) ───────
-// Apps Script doGet/doPost automatically handles CORS for "Anyone" deployments.
+        <div id="mobile-tab-bar" class="flex lg:hidden border-b border-slate-200 bg-white shrink-0">
+            <button id="tab-form" onclick="switchMobileTab('form')"
+                class="flex-1 py-3 text-sm font-bold border-b-2 border-blue-600 text-blue-600 flex items-center justify-center gap-2 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit Form
+            </button>
+            <button id="tab-preview" onclick="switchMobileTab('preview')"
+                class="flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-500 flex items-center justify-center gap-2 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Preview
+            </button>
+        </div>
 
-// ═══════════════════════════════════════════════════════════════════════════
-// doGet — handles read actions
-// ═══════════════════════════════════════════════════════════════════════════
-function doGet(e) {
-  const p      = e.parameter || {};
-  const action = p.action    || '';
-  const secret = p.secret    || '';
-  const token  = p.token     || '';
+        <div class="flex flex-1 flex-col lg:flex-row overflow-hidden h-full w-full min-h-0">
 
-  try {
-    // ── Login does NOT need a token, but needs the API secret ──────────────
-    if (action === 'checkLogin') {
-      if (!validateSecret(secret)) return jsonOut({ success: false, message: 'Unauthorized' });
-      return handleLogin(p.username || '', p.password || '');
-    }
+            <div id="form-panel" class="w-full lg:w-1/2 p-4 sm:p-6 overflow-y-auto custom-scrollbar print:hidden border-b lg:border-b-0 lg:border-r border-slate-200 h-full bg-slate-50/50">
+                
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tight text-slate-800">G.M. Enterprises</h1>
+                        <p class="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            Logged In: <span id="logged-user-name" class="font-bold text-slate-800"></span>
+                        </p>
+                    </div>
+                    <div class="flex gap-2.5 w-full sm:w-auto flex-wrap">
+                        <button onclick="handleSaveToSheets()" id="btn-save" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:scale-[0.98] transition-all font-semibold text-sm shadow-sm shadow-emerald-600/10">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                            <span id="btn-save-text">Save to Sheets</span>
+                        </button>
+                        <button onclick="handlePrint()" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-[0.98] transition-all font-semibold text-sm shadow-sm shadow-blue-600/10">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                            Print / PDF
+                        </button>
+                        <button onclick="window.open('challan.html', '_blank')" title="Delivery Challan" class="px-3 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 active:scale-[0.98] transition-all flex items-center gap-1.5 font-semibold text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                            <span class="hidden sm:inline">Challan</span>
+                        </button>
+                        <button onclick="window.open('dashboard.html', '_blank')" title="Dashboard" class="px-3 py-2.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 active:scale-[0.98] transition-all flex items-center gap-1.5 font-semibold text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            <span class="hidden sm:inline">Dashboard</span>
+                        </button>
+                        <button onclick="window.open('reports.html', '_blank')" title="Reports" class="px-3 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 active:scale-[0.98] transition-all flex items-center gap-1.5 font-semibold text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                            <span class="hidden sm:inline">Reports</span>
+                        </button>
+                        <button onclick="doLogout()" class="px-3 py-2.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98] transition-all" title="Logout">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        </button>
+                    </div>
+                </div>
 
-    // ── All other GET actions require a valid session token ─────────────────
-    const session = validateSession(token);
-    if (!session) return jsonOut({ success: false, message: 'Session expired. Please log in again.', sessionExpired: true });
+                <div class="space-y-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                            <h2 class="font-bold text-base text-slate-800">Company Details</h2>
+                            <span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold tracking-wider uppercase border border-slate-200">Hardcoded</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Company Name</label>
+                                <input type="text" value="G.M.ENTERPRISES" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Address</label>
+                                <textarea readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm resize-none" rows="2">Byculla(W)</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">GSTIN</label>
+                                <input type="text" value="27AAAAA00000001" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-mono text-sm cursor-not-allowed" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">State</label>
+                                <input type="text" value="Maharashtra" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Phone No.</label>
+                                <input type="text" value="+91 00000 00000" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Email</label>
+                                <input type="text" value="info@gmenterprises.com" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Website</label>
+                                <input type="text" value="www.gmenterprises.com" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                            <div class="col-span-2 pt-3 mt-1 border-t border-slate-100">
+                                <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">🏦 Bank Details (shown on invoice)</div>
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Bank Name</label>
+                                <input type="text" value="State Bank of India" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">IFSC Code</label>
+                                <input type="text" value="SBIN0001234" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-mono cursor-not-allowed text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Account No.</label>
+                                <input type="text" value="123456789012" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-mono cursor-not-allowed text-sm" />
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">UPI ID</label>
+                                <input type="text" value="gmenterprises@sbi" readonly class="w-full border border-slate-200 p-2.5 rounded-lg mt-1.5 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed text-sm" />
+                            </div>
+                        </div>
+                    </div>
 
-    if (action === 'getInvoiceNos')   return handleGetInvoiceNos();
-    if (action === 'getInvoiceByNo')  return handleGetInvoiceByNo(p.invoiceNo || '');
-    if (action === 'getDashboard')    return handleGetDashboard();
-    if (action === 'getChallansData') return handleGetChallansData();
-    if (action === 'getChallanNos')   return handleGetChallanNos();
-    if (action === 'searchBuyer')     return handleSearchBuyer(p.q || '');
-    if (action === 'getBuyers')       return handleGetBuyers();
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                            <h2 class="font-bold text-base border-b border-slate-100 pb-3 mb-4 text-slate-800">Invoice Info</h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between items-center">
+                                        <label class="block text-sm font-medium text-slate-600">Invoice No. <span class="text-rose-500 font-bold">*</span></label>
+                                        <div id="inv-no-status" class="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                                            <svg id="inv-no-spinner" class="animate-spin hidden text-blue-500" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                            <span id="inv-no-status-text"></span>
+                                        </div>
+                                    </div>
+                                    <div class="relative mt-1.5 flex items-center">
+                                        <input type="text" id="inv-no" oninput="updateInvoiceMeta('invoiceNo', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-bold text-slate-700 pr-24 text-sm shadow-sm" placeholder="Fetching…" />
+                                        <button onclick="fetchNextInvoiceNo()" title="Re-fetch next invoice number from Google Sheets" class="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs px-2.5 py-1.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-md border border-slate-200 transition-colors font-semibold flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.65"></path></svg>
+                                            Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-600">Date</label>
+                                    <input type="date" id="inv-date" onchange="updateInvoiceMeta('date', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-600">Challan No.</label>
+                                    <input type="text" id="inv-challan" oninput="updateInvoiceMeta('challanNo', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm text-slate-700 shadow-sm" placeholder="e.g. CH/001" />
+                                </div>
+                            </div>
+                        </div>
 
-    return jsonOut({ success: false, message: 'Unknown action' });
-  } catch (err) {
-    return jsonOut({ success: false, message: err.toString() });
-  }
-}
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                                <h2 class="font-bold text-base text-slate-800">Buyer (Billed To)</h2>
+                                <button onclick="handleSaveBuyer()" class="flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-md border border-emerald-200 hover:bg-emerald-100 font-bold transition-colors shadow-sm" title="Upload / Sync this buyer to Google Sheet Database">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                                    Save Buyer
+                                </button>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="relative">
+                                    <label class="block text-sm font-medium text-slate-600">Buyer Name</label>
+                                    <div class="relative mt-1.5">
+                                        <input type="text" id="buyer-name" oninput="onBuyerNameChange(this.value)" autocomplete="off" class="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none pr-8 text-sm text-slate-700 shadow-sm" placeholder="Search or add buyer..." />
+                                        <svg id="buyer-search-spinner" class="animate-spin hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                    </div>
+                                    <div id="buyer-suggestions" class="hidden absolute z-50 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-y-auto divide-y divide-slate-100 overflow-hidden"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-600">Address</label>
+                                    <textarea id="buyer-address" oninput="updateBuyer('address', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm resize-none" rows="2"></textarea>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-600">GSTIN</label>
+                                        <input type="text" id="buyer-gstin" oninput="updateBuyer('gstin', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm text-slate-700 shadow-sm" placeholder="27BBBBB0000B1Z5" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-600">State</label>
+                                        <input type="text" id="buyer-state" oninput="updateBuyer('state', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" placeholder="Maharashtra" />
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-600">Phone No.</label>
+                                        <input type="tel" id="buyer-phone" oninput="updateBuyer('phone', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" placeholder="9876543210" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-600">Email ID</label>
+                                        <input type="email" id="buyer-email" oninput="updateBuyer('email', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" placeholder="buyer@example.com" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-// ═══════════════════════════════════════════════════════════════════════════
-// doPost — handles write actions
-// ═══════════════════════════════════════════════════════════════════════════
-function doPost(e) {
-  try {
-    const body   = JSON.parse(e.postData.contents || '{}');
-    const action = body.action || '';
-    const secret = body.secret || '';
-    const token  = body.token  || '';
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                            <h2 class="font-bold text-base text-slate-800">Items</h2>
+                            <button onclick="handleAddItem()" class="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-md hover:bg-blue-100 border border-blue-200 font-bold transition-colors shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Add Item
+                            </button>
+                        </div>
+                        <div id="items-list-form" class="space-y-4"></div>
+                    </div>
 
-    // ── All POST actions require BOTH a valid secret AND a live session ──────
-    if (!validateSecret(secret)) return jsonOut({ success: false, message: 'Unauthorized' });
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-12">
+                        <h2 class="font-bold text-base border-b border-slate-100 pb-3 mb-4 text-slate-800">Taxes (%)</h2>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600">CGST %</label>
+                                <input type="number" id="tax-cgst" oninput="updateTaxes('cgst', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600">SGST %</label>
+                                <input type="number" id="tax-sgst" oninput="updateTaxes('sgst', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600">IGST %</label>
+                                <input type="number" id="tax-igst" oninput="updateTaxes('igst', this.value)" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm text-slate-700 shadow-sm" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    const session = validateSession(token);
-    if (!session) return jsonOut({ success: false, message: 'Session expired. Please log in again.', sessionExpired: true });
+            <div id="preview-panel" class="w-full lg:w-1/2 p-4 sm:p-6 bg-slate-200 justify-center items-start overflow-y-auto h-full hidden lg:flex">
+                <div class="w-full overflow-x-auto flex lg:justify-center min-h-full py-2">
+                    <div id="printable-invoice" class="bg-white shadow-xl p-8 w-[210mm] min-h-[297mm] text-[11px] leading-tight text-black font-sans tally-border box-border relative shrink-0 my-auto flex flex-col">
+                        
+                        <div class="text-center font-bold text-lg py-1 tally-border-b underline tracking-wider bg-white">TAX INVOICE</div>
 
-    if (action === 'addInvoice') return handleAddInvoice(body.data, session.username);
-    if (action === 'addBuyer')   return handleAddBuyer(body.data, session.username);
-    if (action === 'saveBuyer')  return handleSaveBuyer(body, session.username);
-    if (action === 'saveChallan') return handleSaveChallan(body, session.username);
+                        <div class="flex tally-border-b" style="min-height:135px;">
+                            <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
+                                <div>
+                                    <div class="font-bold text-sm uppercase">G.M.ENTERPRISES</div>
+                                    <div class="mt-1 font-medium">Byculla(W)</div>
+                                    <div class="mt-1 font-medium text-[9px]"><span class="font-bold">Ph:</span> +91 00000 00000 <span class="mx-1">|</span> <span class="font-bold">Email:</span> info@gmenterprises.com</div>
+                                    <div class="font-medium text-[9px]"><span class="font-bold">Web:</span> www.gmenterprises.com</div>
+                                    <div class="mt-1"><span class="font-bold">GSTIN/UIN: </span> 27AAAAA00000001</div>
+                                    <div><span class="font-bold">State Name: </span> Maharashtra, <span class="font-bold">Code:</span> 27</div>
+                                </div>
+                            </div>
+                            <div class="w-1/2 flex flex-col">
+                                <div class="flex tally-border-b flex-1">
+                                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Invoice No.</div><div id="prev-inv-no" class="font-bold text-xs"></div></div>
+                                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Dated</div><div id="prev-inv-date" class="font-semibold"></div></div>
+                                </div>
+                                <div class="flex tally-border-b flex-1">
+                                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Delivery Note</div><div>-</div></div>
+                                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Mode/Terms of Payment</div><div>-</div></div>
+                                </div>
+                                <div class="flex flex-1">
+                                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Supplier's Ref.</div><div>-</div></div>
+                                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Other Reference(s)</div><div>-</div></div>
+                                </div>
+                            </div>
+                        </div>
 
-    return jsonOut({ success: false, message: 'Unknown action' });
-  } catch (err) {
-    return jsonOut({ success: false, message: err.toString() });
-  }
-}
+                        <div class="flex tally-border-b" style="min-height:115px;">
+                            <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
+                                <div>
+                                    <div class="font-bold text-[9px] uppercase tracking-wide text-gray-500">Buyer (Bill to)</div>
+                                    <div id="prev-buyer-name" class="font-bold text-sm uppercase mt-1"></div>
+                                    <div id="prev-buyer-address" class="mt-1"></div>
+                                    <div class="mt-2"><span class="font-bold">GSTIN/UIN: </span> <span id="prev-buyer-gstin"></span></div>
+                                    <div><span class="font-bold">State Name: </span> Maharashtra, <span class="font-bold">Code:</span> 27</div>
+                                    <div id="prev-buyer-contact-row" class="mt-1 hidden">
+                                        <span id="prev-buyer-phone-wrap"><span class="font-bold">Ph: </span><span id="prev-buyer-phone"></span></span>
+                                        <span id="prev-buyer-email-wrap" class="ml-3 hidden"><span class="font-bold">Email: </span><span id="prev-buyer-email"></span></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="w-1/2 flex flex-col">
+                                <div class="flex tally-border-b flex-1">
+                                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Challan No.</div><div id="prev-challan-no" class="font-semibold">-</div></div>
+                                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Dated</div><div>-</div></div>
+                                </div>
+                                <div class="flex tally-border-b flex-1">
+                                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Dispatch Document No.</div><div>-</div></div>
+                                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Delivery Note Date</div><div>-</div></div>
+                                </div>
+                                <div class="flex flex-1">
+                                    <div class="w-1/2 tally-border-r p-1 pl-2"><div class="font-bold">Dispatched through</div><div>-</div></div>
+                                    <div class="w-1/2 p-1 pl-2"><div class="font-bold">Destination</div><div>-</div></div>
+                                </div>
+                            </div>
+                        </div>
 
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════════════════
-function handleLogin(username, password) {
-  username = (username || '').trim().toLowerCase();
-  if (!username || !password) {
-    return jsonOut({ success: false, message: 'Username and password are required.' });
-  }
+                        <div id="items-table-container" class="tally-border-b flex-grow flex flex-col relative" style="min-height:280px;">
+                            <div class="absolute top-0 bottom-0 left-0 w-full flex pointer-events-none">
+                                <div class="w-[8%] tally-border-r h-full"></div>
+                                <div class="w-[42%] tally-border-r h-full"></div>
+                                <div class="w-[12%] tally-border-r h-full"></div>
+                                <div class="w-[10%] tally-border-r h-full"></div>
+                                <div class="w-[10%] tally-border-r h-full"></div>
+                                <div class="w-[6%] tally-border-r h-full"></div>
+                                <div class="w-[12%] h-full"></div>
+                            </div>
+                            <div class="w-full flex tally-border-b font-bold text-center z-10 bg-white">
+                                <div class="w-[8%] tally-border-r p-1">Sl No.</div>
+                                <div class="w-[42%] tally-border-r p-1 text-left pl-2">Description of Goods</div>
+                                <div class="w-[12%] tally-border-r p-1">HSN/SAC</div>
+                                <div class="w-[10%] tally-border-r p-1">Quantity</div>
+                                <div class="w-[10%] tally-border-r p-1">Rate</div>
+                                <div class="w-[6%] tally-border-r p-1">per</div>
+                                <div class="w-[12%] p-1 text-right pr-2">Amount</div>
+                            </div>
+                            <div id="prev-items-body" class="w-full flex-1 z-10 pt-1 overflow-hidden"></div>
+                        </div>
 
-  const props    = getProps();
-  const key      = 'USER_' + username;
-  const stored   = props[key];
+                        <div class="flex tally-border-b font-bold bg-white">
+                            <div class="w-[8%] p-1"></div>
+                            <div class="w-[42%] p-1 text-right pr-2">Total</div>
+                            <div class="w-[12%] p-1"></div>
+                            <div class="w-[10%] p-1"></div>
+                            <div class="w-[10%] p-1"></div>
+                            <div class="w-[6%] p-1"></div>
+                            <div id="prev-grand-total" class="w-[12%] p-1 text-right pr-2 tally-border-l"></div>
+                        </div>
 
-  if (!stored || stored !== password) {
-    // Intentionally vague — don't reveal which part is wrong
-    return jsonOut({ success: false, message: 'Invalid username or password.' });
-  }
+                        <div class="tally-border-b p-2 bg-white">
+                            <div class="font-bold text-[10px] uppercase text-gray-500">Amount Chargeable (in words)</div>
+                            <div id="prev-amount-words" class="font-bold text-[11px] mt-1"></div>
+                        </div>
 
-  // Create session
-  const token = generateToken();
-  SESSIONS[token] = {
-    username:    username,
-    displayName: props['DISPLAY_' + username] || username,
-    expiresAt:   Date.now() + SESSION_TTL_MS
-  };
+                        <div class="tally-border-b flex">
+                            <div class="w-1/2 tally-border-r p-2">
+                                <div class="font-bold underline mb-1">Declaration</div>
+                                <div class="text-justify text-[10px] leading-relaxed text-gray-700">We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+                                <div class="mt-2">
+                                    <div class="font-bold text-[10px] underline mb-1">Bank Details</div>
+                                    <div id="prev-bank-name-row" class="text-[10px] leading-relaxed hidden"><span class="font-bold">Bank Name: </span><span id="prev-bank-name"></span></div>
+                                    <div id="prev-bank-ifsc-row" class="text-[10px] leading-relaxed hidden"><span class="font-bold">IFSC Code: </span><span id="prev-bank-ifsc" class="font-mono"></span></div>
+                                    <div id="prev-bank-account-row" class="text-[10px] leading-relaxed hidden"><span class="font-bold">Account No: </span><span id="prev-bank-account" class="font-mono"></span></div>
+                                    <div id="prev-bank-upi-row" class="text-[10px] leading-relaxed hidden"><span class="font-bold">UPI ID: </span><span id="prev-bank-upi"></span></div>
+                                    <div id="prev-bank-placeholder" class="text-[10px] text-gray-400 italic hidden"></div>
+                                </div>
+                            </div>
+                            <div class="w-1/2 p-2 relative flex flex-col justify-between">
+                                <div class="text-right font-bold text-[10px]">for G.M.ENTERPRISES</div>
+                                <div class="text-right font-bold mt-14 pb-1">Authorised Signatory</div>
+                            </div>
+                        </div>
 
-  return jsonOut({
-    success:     true,
-    token:       token,
-    username:    username,
-    displayName: SESSIONS[token].displayName
-  });
-}
+                        <div class="text-center py-1 text-[9px] font-semibold text-gray-600">SUBJECT TO MAHARASHTRA JURISDICTION</div>
+                        <div class="text-center pb-1 text-[9px] text-gray-500">This is a Computer Generated Invoice</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-// ═══════════════════════════════════════════════════════════════════════════
-// INVOICE HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
-function handleGetInvoiceNos() {
-  const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ invoiceNos: [] });
-  const data  = sheet.getDataRange().getValues();
-  // Column A = Invoice No (skip header row 0)
-  const nos = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
-  return jsonOut({ invoiceNos: nos });
-}
+    <script>
+        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbxE_8SSl4LyGF2y0daXfSAwhDT1JZWbK_DgRzEcbWcpErrhpFSaYUayGVrGYpEi-nd5xA/exec";
+        // ── SECURITY: Set this to match API_SECRET in Script Properties ─────
+        const API_SECRET = "vwtbciPw@YCcqWHxi94%r";
 
-function handleGetInvoiceByNo(invoiceNo) {
-  const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ invoice: null });
-  const data  = sheet.getDataRange().getValues();
-  const headers = data[0];
-  for (let i = 1; i < data.length; i++) {
-    if ((data[i][0] || '').toString().trim().toLowerCase() === invoiceNo.toLowerCase()) {
-      const inv = {};
-      headers.forEach((h, j) => inv[h] = data[i][j]);
-      return jsonOut({ invoice: inv });
-    }
-  }
-  return jsonOut({ invoice: null });
-}
+        const state = {
+            company: { name: 'G.M.ENTERPRISES', address: 'Byculla(W)', gstin: '27AAAAA00000001', state: 'Maharashtra', stateCode: '27', phone: '+91 00000 00000', email: 'info@gmenterprises.com', website: 'www.gmenterprises.com' },
+            bankDetails: { bankName: 'State Bank of India', bankIfsc: 'SBIN0001234', bankAccount: '123456789012', bankUpi: 'gmenterprises@sbi' },
+            buyer: { name: '', address: '', gstin: '', state: 'Maharashtra', stateCode: '27', phone: '', email: '' },
+            invoiceMeta: { invoiceNo: 'INV/26-27/001', date: new Date().toISOString().split('T')[0], challanNo: '' },
+            savedBuyers: [],
+            items: [
+                { id: Date.now(), desc: 'Consulting Services', hsn: '9983', qty: 1, rate: 5000, per: 'Nos', amount: 5000 }
+            ],
+            taxes: { cgst: 9, sgst: 9, igst: 0 },
+            isSaving: false,
+            buyerSearchTimeout: null,
+            isSavedToSheets: false
+        };
 
-function handleGetDashboard() {
-  const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ invoices: [] });
-  const data    = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const invoices = data.slice(1).map(row => {
-    const inv = {};
-    headers.forEach((h, j) => inv[h] = row[j]);
-    return inv;
-  });
-  return jsonOut({ invoices });
-}
+        (function initLoginCheck() {
+            const token = sessionStorage.getItem('gme_token');
+            if (token) {
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('app-workspace').classList.remove('hidden');
+                document.getElementById('app-workspace').classList.add('flex');
+                document.getElementById('logged-user-name').innerText = sessionStorage.getItem('gme_display') || sessionStorage.getItem('gme_username') || 'Admin';
+            }
+        })();
 
-function handleAddInvoice(data, username) {
-  const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ result: 'error', message: 'Invoices sheet not found' });
+        function toggleLoginPwd() {
+            var f = document.getElementById('login-password');
+            f.type = (f.type === 'password') ? 'text' : 'password';
+        }
 
-  const allData = sheet.getDataRange().getValues();
-  // Duplicate check
-  const exists = allData.slice(1).some(r =>
-    (r[0] || '').toString().trim().toLowerCase() === (data.invoiceNo || '').toLowerCase()
-  );
-  if (exists) return jsonOut({ result: 'duplicate' });
+        async function doLogin() {
+            var username = (document.getElementById('login-username').value || '').trim();
+            var password = (document.getElementById('login-password').value || '').trim();
+            var errBox   = document.getElementById('login-error');
+            var btn      = document.getElementById('login-btn');
 
-  const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  const itemsJson = JSON.stringify(data.items || []);
+            errBox.style.display = 'none';
+            if (!username || !password) {
+                errBox.textContent   = 'Please enter both username and password.';
+                errBox.style.display = 'block';
+                return;
+            }
 
-  sheet.appendRow([
-    data.invoiceNo    || '',
-    data.date         || '',
-    data.challanNo    || '',
-    data.buyerName    || '',
-    data.buyerPhone   || '',
-    data.buyerEmail   || '',
-    data.buyerAddress || '',
-    data.buyerGstin   || '',
-    data.subTotal     || 0,
-    data.cgstRate     || 0,
-    data.cgstAmount   || 0,
-    data.sgstRate     || 0,
-    data.sgstAmount   || 0,
-    data.igstRate     || 0,
-    data.igstAmount   || 0,
-    data.taxAmount    || 0,
-    data.grandTotal   || 0,
-    itemsJson,
-    username,
-    now
-  ]);
+            btn.disabled    = true;
+            btn.textContent = 'Signing in…';
 
-  return jsonOut({ result: 'success' });
-}
+            try {
+                var url = googleScriptUrl
+                    + '?action=checkLogin'
+                    + '&secret=' + encodeURIComponent(API_SECRET)
+                    + '&username=' + encodeURIComponent(username)
+                    + '&password=' + encodeURIComponent(password);
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BUYER HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
-function handleSearchBuyer(q) {
-  const sheet = getSheet(SHEET_BUYERS);
-  if (!sheet) return jsonOut({ buyers: [] });
-  const data  = sheet.getDataRange().getValues();
-  if (data.length < 2) return jsonOut({ buyers: [] });
-  const headers = data[0];
-  const ql = q.toLowerCase();
-  const buyers = data.slice(1)
-    .filter(r => (r[0] || '').toString().toLowerCase().includes(ql))
-    .map(row => {
-      const b = {};
-      headers.forEach((h, j) => b[h] = row[j]);
-      return b;
-    });
-  return jsonOut({ buyers });
-}
+                var res  = await fetch(url);
+                var data = await res.json();
 
-function handleGetBuyers() {
-  const sheet = getSheet(SHEET_BUYERS);
-  if (!sheet) return jsonOut({ buyers: [] });
-  const data  = sheet.getDataRange().getValues();
-  if (data.length < 2) return jsonOut({ buyers: [] });
-  const headers = data[0];
-  const buyers = data.slice(1).map(row => {
-    const b = {};
-    headers.forEach((h, j) => b[h] = row[j]);
-    return b;
-  });
-  return jsonOut({ buyers });
-}
+                if (data.success) {
+                    sessionStorage.setItem('gme_token',   data.token);
+                    sessionStorage.setItem('gme_username', data.username);
+                    sessionStorage.setItem('gme_display',  data.displayName || data.username);
+                    
+                    document.getElementById('login-overlay').classList.add('hidden');
+                    document.getElementById('app-workspace').classList.remove('hidden');
+                    document.getElementById('app-workspace').classList.add('flex');
+                    document.getElementById('logged-user-name').innerText = data.displayName || data.username;
 
-function handleAddBuyer(data, username) {
-  const sheet = getSheet(SHEET_BUYERS);
-  if (!sheet) return jsonOut({ result: 'error', message: 'Buyers sheet not found' });
+                    fetchNextInvoiceNo();
+                } else {
+                    errBox.textContent   = data.message || 'Invalid username or password.';
+                    errBox.style.display = 'block';
+                    document.getElementById('login-password').value = '';
+                    document.getElementById('login-password').focus();
+                }
+            } catch (err) {
+                errBox.textContent   = 'Connection failed. Check your internet or Apps Script URL.';
+                errBox.style.display = 'block';
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Sign In';
+            }
+        }
 
-  const allData = sheet.getDataRange().getValues();
-  const nameLC  = (data.name || '').toLowerCase();
-  const rowIdx  = allData.slice(1).findIndex(r => (r[0] || '').toString().toLowerCase() === nameLC);
+        function doLogout() {
+            sessionStorage.removeItem('gme_token');
+            sessionStorage.removeItem('gme_username');
+            sessionStorage.removeItem('gme_display');
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').style.display = 'none';
+            
+            document.getElementById('app-workspace').classList.add('hidden');
+            document.getElementById('app-workspace').classList.remove('flex');
+            document.getElementById('login-overlay').classList.remove('hidden');
+            document.getElementById('login-username').focus();
+        }
 
-  const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  const row = [
-    data.name      || '',
-    data.address   || '',
-    data.gstin     || '',
-    data.state     || '',
-    data.stateCode || '',
-    data.phone     || '',
-    data.email     || '',
-    username,
-    now
-  ];
+        function switchMobileTab(targetPanel) {
+            const formEl    = document.getElementById('form-panel');
+            const prevEl    = document.getElementById('preview-panel');
+            const tabFormBtn = document.getElementById('tab-form');
+            const tabPrevBtn = document.getElementById('tab-preview');
 
-  if (rowIdx >= 0) {
-    const sheetRow = rowIdx + 2; // +1 for header, +1 for 1-based
-    sheet.getRange(sheetRow, 1, 1, row.length).setValues([row]);
-  } else {
-    sheet.appendRow(row);
-  }
+            if (targetPanel === 'form') {
+                formEl.classList.remove('hidden');
+                prevEl.classList.add('hidden');
+                prevEl.classList.remove('flex');
 
-  return jsonOut({ result: 'success' });
-}
+                tabFormBtn.classList.add('border-blue-600', 'text-blue-600');
+                tabFormBtn.classList.remove('border-transparent', 'text-slate-500');
+                tabPrevBtn.classList.remove('border-blue-600', 'text-blue-600');
+                tabPrevBtn.classList.add('border-transparent', 'text-slate-500');
+            } else {
+                formEl.classList.add('hidden');
+                prevEl.classList.remove('hidden');
+                prevEl.classList.add('flex');
 
-function handleSaveBuyer(body, username) {
-  return handleAddBuyer({
-    name:      body.name      || '',
-    address:   body.address   || '',
-    gstin:     body.gstin     || '',
-    state:     body.state     || '',
-    stateCode: body.stateCode || '',
-    phone:     body.phone     || '',
-    email:     body.email     || ''
-  }, username);
-}
+                tabPrevBtn.classList.add('border-blue-600', 'text-blue-600');
+                tabPrevBtn.classList.remove('border-transparent', 'text-slate-500');
+                tabFormBtn.classList.remove('border-blue-600', 'text-blue-600');
+                tabFormBtn.classList.add('border-transparent', 'text-slate-500');
+            }
+        }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CHALLAN HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
-function handleGetChallanNos() {
-  const sheet = getSheet(SHEET_CHALLANS);
-  if (!sheet) return jsonOut({ challanNos: [] });
-  const data = sheet.getDataRange().getValues();
-  const nos  = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
-  return jsonOut({ challanNos: nos });
-}
+        function numberToWords(price) {
+            const sglDigit = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+            const dblDigit = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+            const tensPlace = ["", "Ten", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+            
+            if (price.toString().length > 9) return "Amount too large";
+            if (price === 0) return "Zero Only";
 
-function handleGetChallansData() {
-  const sheet = getSheet(SHEET_CHALLANS);
-  if (!sheet) return jsonOut({ challans: [] });
-  const data    = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const challans = data.slice(1).map(row => {
-    const c = {};
-    headers.forEach((h, j) => c[h] = row[j]);
-    return c;
-  });
-  return jsonOut({ challans });
-}
+            const numString = price.toString().padStart(9, '0');
+            const crores    = parseInt(numString.substring(0, 2), 10);
+            const lakhs     = parseInt(numString.substring(2, 4), 10);
+            const thousands = parseInt(numString.substring(4, 6), 10);
+            const hundreds  = parseInt(numString.substring(6, 7), 10);
+            const tensAndOnes = parseInt(numString.substring(7, 9), 10);
 
-function handleSaveChallan(body, username) {
-  const sheet = getSheet(SHEET_CHALLANS);
-  if (!sheet) return jsonOut({ success: false, message: 'Challans sheet not found' });
+            let words = "";
+            const processTwoDigits = (num, suffix) => {
+                if (num > 0) {
+                    if (num < 10) words += sglDigit[num] + " " + suffix + " ";
+                    else if (num < 20) words += dblDigit[num - 10] + " " + suffix + " ";
+                    else {
+                        words += tensPlace[Math.floor(num / 10)] + " ";
+                        if (num % 10 > 0) words += sglDigit[num % 10] + " ";
+                        words += suffix + " ";
+                    }
+                }
+            };
 
-  const allData = sheet.getDataRange().getValues();
-  const challanNo = (body.id || body.challanNo || '').toString().trim();
-  const exists = allData.slice(1).some(r =>
-    (r[0] || '').toString().trim().toLowerCase() === challanNo.toLowerCase()
-  );
-  if (exists) return jsonOut({ success: false, message: 'Duplicate challan number' });
+            processTwoDigits(crores, "Crore");
+            processTwoDigits(lakhs, "Lakh");
+            processTwoDigits(thousands, "Thousand");
+            if (hundreds > 0) words += sglDigit[hundreds] + " Hundred ";
+            if (tensAndOnes > 0) {
+                if (words !== "") words += "and ";
+                if (tensAndOnes < 10) words += sglDigit[tensAndOnes] + " ";
+                else if (tensAndOnes < 20) words += dblDigit[tensAndOnes - 10] + " ";
+                else {
+                    words += tensPlace[Math.floor(tensAndOnes / 10)] + " ";
+                    if (tensAndOnes % 10 > 0) words += sglDigit[tensAndOnes % 10] + " ";
+                }
+            }
+            return words.trim() + " Only";
+        }
 
-  const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  sheet.appendRow([
-    challanNo,
-    body.date         || '',
-    body.challanNo    || body.challanNo || '',
-    body.buyerName    || '',
-    body.buyerPhone   || '',
-    body.buyerEmail   || '',
-    body.buyerAddress || '',
-    body.buyerGstin   || '',
-    body.subTotal     || 0,
-    body.tax          || 0,
-    body.grandTotal   || 0,
-    body.itemsJson    || '',
-    username,
-    now
-  ]);
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `p-4 rounded-xl flex items-center gap-3 text-white transition-all shadow-xl border border-white/10 max-w-sm transform translate-y-0 opacity-100 pointer-events-auto ${type === 'success' ? 'bg-slate-900 shadow-slate-900/20' : 'bg-red-600 shadow-red-600/20'}`;
+            toast.innerHTML = type === 'success' 
+                ? `<svg width="20" height="20" class="text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> <span class="font-semibold text-sm leading-snug">${message}</span>`
+                : `<svg width="20" height="20" class="text-white shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> <span class="font-semibold text-sm leading-snug">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
 
-  return jsonOut({ success: true });
+        function parseInvoiceNo(invNo) {
+            const match = String(invNo).trim().match(/^(.+?)\/(\d{2}-\d{2})\/(\d+)$/);
+            if (!match) return null;
+            return { prefix: match[1], year: match[2], serial: parseInt(match[3], 10) };
+        }
+
+        function buildInvoiceNo(prefix, year, serial) {
+            return `${prefix}/${year}/${String(serial).padStart(3, '0')}`;
+        }
+
+        function getCurrentFY() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth();
+            const startYear = m >= 3 ? y : y - 1;
+            return `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+        }
+
+        async function fetchNextInvoiceNo() {
+            const spinner  = document.getElementById('inv-no-spinner');
+            const statusEl = document.getElementById('inv-no-status-text');
+            const input    = document.getElementById('inv-no');
+            const token    = sessionStorage.getItem('gme_token') || '';
+
+            spinner.classList.remove('hidden');
+            statusEl.textContent = 'Fetching from Sheets…';
+            input.disabled = true;
+
+            try {
+                const res  = await fetch(googleScriptUrl + '?action=getInvoiceNos&token=' + encodeURIComponent(token));
+                const data = await res.json();
+
+                if (data.sessionExpired) { doLogout(); return; }
+
+                if (!data.invoiceNos || data.invoiceNos.length === 0) {
+                    const fy     = getCurrentFY();
+                    const nextNo = buildInvoiceNo('INV', fy, 1);
+                    setInvoiceNo(nextNo);
+                    statusEl.textContent = '✓ Sheet empty — starting at 001';
+                    return;
+                }
+
+                const currentFY = getCurrentFY();
+                const parsed = data.invoiceNos
+                    .map(n => parseInvoiceNo(n))
+                    .filter(p => p && p.year === currentFY);
+
+                if (parsed.length === 0) {
+                    const nextNo = buildInvoiceNo('INV', currentFY, 1);
+                    setInvoiceNo(nextNo);
+                    statusEl.textContent = `✓ New FY ${currentFY} — starting at 001`;
+                    return;
+                }
+
+                const maxSerial = Math.max(...parsed.map(p => p.serial));
+                const lastEntry = parsed.find(p => p.serial === maxSerial);
+                const nextNo    = buildInvoiceNo(lastEntry.prefix, currentFY, maxSerial + 1);
+
+                setInvoiceNo(nextNo);
+                statusEl.textContent = `✓ Last was ${maxSerial.toString().padStart(3,'0')} — auto-set next`;
+
+            } catch (err) {
+                console.error('fetchNextInvoiceNo failed:', err);
+                const fy     = getCurrentFY();
+                const nextNo = buildInvoiceNo('INV', fy, 1);
+                setInvoiceNo(nextNo);
+                statusEl.textContent = '⚠ Offline — defaulted to 001';
+            } finally {
+                spinner.classList.add('hidden');
+                input.disabled = false;
+            }
+        }
+
+        function setInvoiceNo(val) {
+            state.invoiceMeta.invoiceNo = val;
+            state.isSavedToSheets = false;
+            document.getElementById('inv-no').value = val;
+            updatePreview();
+        }
+
+        window.onload = () => {
+            document.getElementById('inv-date').value    = state.invoiceMeta.date;
+            document.getElementById('inv-challan').value = state.invoiceMeta.challanNo;
+            document.getElementById('tax-cgst').value   = state.taxes.cgst;
+            document.getElementById('tax-sgst').value   = state.taxes.sgst;
+            document.getElementById('tax-igst').value   = state.taxes.igst;
+
+            renderItemsForm();
+            updatePreview();
+
+            if (sessionStorage.getItem('gme_token')) {
+                fetchNextInvoiceNo();
+            }
+        };
+
+        window.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                handlePrint();
+            }
+        });
+
+        function handlePrint() {
+            if (!state.isSavedToSheets) {
+                showToast('Action Blocked: Save invoice to Google Sheets before printing!', 'error');
+                return;
+            }
+            window.print();
+        }
+
+        function updateInvoiceMeta(field, value) {
+            state.invoiceMeta[field] = value;
+            state.isSavedToSheets = false;
+            updatePreview();
+        }
+
+        function updateBuyer(field, value) {
+            state.buyer[field] = value;
+            state.isSavedToSheets = false;
+            updatePreview();
+        }
+
+        function updateTaxes(field, value) {
+            state.taxes[field] = parseFloat(value) || 0;
+            state.isSavedToSheets = false;
+            updatePreview();
+        }
+
+        function renderItemsForm() {
+            const container = document.getElementById('items-list-form');
+            container.innerHTML = state.items.map(item => `
+                <div class="flex gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-200/80 shadow-sm relative transition-all hover:shadow-md">
+                    <div class="grid grid-cols-12 gap-3 w-full">
+                        <div class="col-span-12 md:col-span-4">
+                            <label class="text-xs text-slate-500 font-bold uppercase tracking-wider">Description</label>
+                            <input type="text" value="${item.desc}" oninput="updateItem(${item.id}, 'desc', this.value)" class="w-full border border-slate-300 p-2 rounded-lg text-sm bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-slate-700 font-medium shadow-sm mt-1" />
+                        </div>
+                        <div class="col-span-6 sm:col-span-4 md:col-span-2">
+                            <label class="text-xs text-slate-500 font-bold uppercase tracking-wider">HSN/SAC</label>
+                            <input type="text" value="${item.hsn}" oninput="updateItem(${item.id}, 'hsn', this.value)" class="w-full border border-slate-300 p-2 rounded-lg text-sm bg-white font-mono focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-slate-700 shadow-sm mt-1" />
+                        </div>
+                        <div class="col-span-6 sm:col-span-4 md:col-span-2">
+                            <label class="text-xs text-slate-500 font-bold uppercase tracking-wider">Qty</label>
+                            <input type="number" value="${item.qty}" oninput="updateItem(${item.id}, 'qty', this.value)" class="w-full border border-slate-300 p-2 rounded-lg text-sm bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-slate-700 font-medium shadow-sm mt-1" />
+                        </div>
+                        <div class="col-span-6 sm:col-span-4 md:col-span-2">
+                            <label class="text-xs text-slate-500 font-bold uppercase tracking-wider">Rate</label>
+                            <input type="number" value="${item.rate}" oninput="updateItem(${item.id}, 'rate', this.value)" class="w-full border border-slate-300 p-2 rounded-lg text-sm bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-slate-700 font-medium shadow-sm mt-1" />
+                        </div>
+                        <div class="col-span-6 sm:col-span-4 md:col-span-2">
+                            <label class="text-xs text-slate-500 font-bold uppercase tracking-wider">Amount</label>
+                            <input type="text" id="amount-${item.id}" value="${item.amount}" readonly class="w-full border border-slate-200 p-2 rounded-lg text-sm bg-slate-100 text-slate-500 font-bold cursor-not-allowed shadow-sm mt-1" />
+                        </div>
+                    </div>
+                    <button onclick="handleRemoveItem(${item.id})" class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors border border-transparent hover:border-rose-100 shrink-0 mb-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function updateItem(id, field, value) {
+            const item = state.items.find(i => i.id === id);
+            item[field] = value;
+            if (field === 'qty' || field === 'rate') {
+                item.amount = parseFloat(item.qty || 0) * parseFloat(item.rate || 0);
+                document.getElementById(`amount-${id}`).value = item.amount;
+            }
+            state.isSavedToSheets = false;
+            updatePreview();
+        }
+
+        function handleAddItem() {
+            state.items.push({ id: Date.now(), desc: '', hsn: '', qty: 1, rate: 0, per: 'Nos', amount: 0 });
+            state.isSavedToSheets = false;
+            renderItemsForm();
+            updatePreview();
+        }
+
+        function handleRemoveItem(id) {
+            state.items = state.items.filter(i => i.id !== id);
+            state.isSavedToSheets = false;
+            renderItemsForm();
+            updatePreview();
+        }
+
+        function populateBuyerFields(b) {
+            state.buyer = {
+                name:      b.name      || '',
+                address:   b.address   || '',
+                gstin:     b.gstin     || '',
+                state:     b.state     || 'Maharashtra',
+                stateCode: b.stateCode || '27',
+                phone:     b.phone     || '',
+                email:     b.email     || ''
+            };
+            state.isSavedToSheets = false;
+            document.getElementById('buyer-name').value    = state.buyer.name;
+            document.getElementById('buyer-address').value = state.buyer.address;
+            document.getElementById('buyer-gstin').value   = state.buyer.gstin;
+            document.getElementById('buyer-state').value   = state.buyer.state;
+            document.getElementById('buyer-phone').value   = state.buyer.phone;
+            document.getElementById('buyer-email').value   = state.buyer.email;
+            updatePreview();
+        }
+
+        function closeBuyerSuggestions() {
+            document.getElementById('buyer-suggestions').classList.add('hidden');
+            document.getElementById('buyer-suggestions').innerHTML = '';
+        }
+
+        function renderBuyerSuggestions(matches) {
+            const box = document.getElementById('buyer-suggestions');
+            if (!matches.length) { closeBuyerSuggestions(); return; }
+            box.innerHTML = matches.map((b, i) => `
+                <div data-idx="${i}" class="px-4 py-2.5 cursor-pointer hover:bg-blue-50/60 border-b last:border-0 border-slate-100 text-sm transition-colors">
+                    <div class="font-bold text-slate-800">${b.name}</div>
+                    <div class="text-xs text-slate-400 font-medium truncate mt-0.5">${b.address || ''} ${b.gstin ? '· ' + b.gstin : ''}</div>
+                </div>
+            `).join('');
+            box.classList.remove('hidden');
+            box.querySelectorAll('[data-idx]').forEach(el => {
+                el.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    populateBuyerFields(matches[parseInt(el.dataset.idx)]);
+                    closeBuyerSuggestions();
+                    showToast(`Buyer "${matches[parseInt(el.dataset.idx)].name}" loaded from database`, 'success');
+                });
+            });
+        }
+
+        async function onBuyerNameChange(val) {
+            state.buyer.name = val;
+            state.isSavedToSheets = false;
+            updatePreview();
+
+            clearTimeout(state.buyerSearchTimeout);
+            closeBuyerSuggestions();
+
+            const query = val.trim();
+            if (query.length < 2) return;
+
+            const localMatches = state.savedBuyers.filter(b =>
+                b.name.toLowerCase().includes(query.toLowerCase())
+            );
+            if (localMatches.length) renderBuyerSuggestions(localMatches);
+
+            state.buyerSearchTimeout = setTimeout(async () => {
+                const spinner = document.getElementById('buyer-search-spinner');
+                const token   = sessionStorage.getItem('gme_token') || '';
+                spinner.classList.remove('hidden');
+                try {
+                    const res  = await fetch(`${googleScriptUrl}?action=searchBuyer&q=${encodeURIComponent(query)}&token=${encodeURIComponent(token)}`);
+                    const data = await res.json();
+                    if (data.sessionExpired) { doLogout(); return; }
+                    if (data.buyers && data.buyers.length) {
+                        data.buyers.forEach(b => {
+                            const idx = state.savedBuyers.findIndex(x => x.name === b.name);
+                            if (idx >= 0) state.savedBuyers[idx] = b; else state.savedBuyers.push(b);
+                        });
+                        renderBuyerSuggestions(data.buyers);
+                    } else if (!localMatches.length) {
+                        closeBuyerSuggestions();
+                    }
+                } catch(e) { }
+                finally { spinner.classList.add('hidden'); }
+            }, 400);
+        }
+
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#buyer-name') && !e.target.closest('#buyer-suggestions')) {
+                closeBuyerSuggestions();
+            }
+        });
+
+        async function handleSaveBuyer() {
+            if (!state.buyer.name.trim()) {
+                showToast('Please enter a buyer name', 'error');
+                return;
+            }
+            const existingIndex = state.savedBuyers.findIndex(b => b.name === state.buyer.name);
+            if (existingIndex >= 0) {
+                state.savedBuyers[existingIndex] = { ...state.buyer };
+            } else {
+                state.savedBuyers.push({ ...state.buyer });
+            }
+            const payload = { action: 'addBuyer', secret: API_SECRET, token: sessionStorage.getItem('gme_token') || '', username: sessionStorage.getItem('gme_username') || 'Unknown', data: state.buyer };
+            try {
+                const res    = await fetch(googleScriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+                const result = await res.json();
+                if (result.result === 'success') {
+                    showToast(`Buyer "${state.buyer.name}" saved to Google Sheets!`, 'success');
+                } else {
+                    showToast('Saved locally. Sheet sync may have failed.', 'success');
+                }
+            } catch (error) {
+                showToast('Saved locally. Could not reach Google Sheets.', 'success');
+            }
+        }
+
+        async function handleSaveToSheets() {
+            state.isSaving = true;
+            document.getElementById('btn-save').disabled = true;
+            document.getElementById('btn-save-text').innerText = "Checking / Saving...";
+            
+            const totals = calculateTotals();
+            const payload = {
+                action: 'addInvoice',
+                secret: API_SECRET,
+                token:  sessionStorage.getItem('gme_token') || '',
+                username: sessionStorage.getItem('gme_username') || 'Unknown',
+                data: {
+                    invoiceNo:    state.invoiceMeta.invoiceNo,
+                    date:         state.invoiceMeta.date,
+                    challanNo:    state.invoiceMeta.challanNo,
+                    companyName:  state.company.name,
+                    buyerName:    state.buyer.name,
+                    buyerPhone:   state.buyer.phone,
+                    buyerEmail:   state.buyer.email,
+                    buyerAddress: state.buyer.address,
+                    buyerGstin:   state.buyer.gstin,
+                    subTotal:     totals.subTotal,
+                    taxAmount:    totals.cgstAmt + totals.sgstAmt + totals.igstAmt,
+                    grandTotal:   totals.grandTotal,
+                    cgstRate:     state.taxes.cgst,
+                    sgstRate:     state.taxes.sgst,
+                    igstRate:     state.taxes.igst,
+                    cgstAmount:   totals.cgstAmt,
+                    sgstAmount:   totals.sgstAmt,
+                    igstAmount:   totals.igstAmt,
+                    items:        state.items
+                }
+            };
+
+            try {
+                const response = await fetch(googleScriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+                const result   = await response.json();
+                if (result.result === 'duplicate') {
+                    showToast(`Validation Failed: Invoice No "${state.invoiceMeta.invoiceNo}" already exists in the database!`, 'error');
+                } else if (result.result === 'success') {
+                    state.isSavedToSheets = true;
+                    showToast('Invoice saved to Google Sheets successfully!', 'success');
+                } else {
+                    showToast('Error saving: ' + (result.message || 'Unknown response'), 'error');
+                }
+            } catch (error) {
+                showToast('Database connection failed. Please check internet access or Apps Script deployment.', 'error');
+            } finally {
+                state.isSaving = false;
+                document.getElementById('btn-save').disabled = false;
+                document.getElementById('btn-save-text').innerText = "Save to Sheets";
+            }
+        }
+
+        function calculateTotals() {
+            let subTotal  = state.items.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            let cgstAmt   = subTotal * (state.taxes.cgst / 100);
+            let sgstAmt   = subTotal * (state.taxes.sgst / 100);
+            let igstAmt   = subTotal * (state.taxes.igst / 100);
+            let grandTotal = Math.round(subTotal + cgstAmt + sgstAmt + igstAmt);
+            return { subTotal, cgstAmt, sgstAmt, igstAmt, grandTotal };
+        }
+
+        function updatePreview() {
+            document.getElementById('prev-inv-no').innerText     = state.invoiceMeta.invoiceNo;
+            document.getElementById('prev-inv-date').innerText   = state.invoiceMeta.date;
+            document.getElementById('prev-challan-no').innerText = state.invoiceMeta.challanNo || '-';
+            
+            document.getElementById('prev-buyer-name').innerText    = state.buyer.name    || '-----------';
+            document.getElementById('prev-buyer-address').innerText = state.buyer.address || '-----------';
+            document.getElementById('prev-buyer-gstin').innerText   = state.buyer.gstin   || '-----------';
+
+            const phone = (state.buyer.phone || '').trim();
+            const email = (state.buyer.email || '').trim();
+            const contactRow = document.getElementById('prev-buyer-contact-row');
+            const phoneWrap  = document.getElementById('prev-buyer-phone-wrap');
+            const emailWrap  = document.getElementById('prev-buyer-email-wrap');
+            document.getElementById('prev-buyer-phone').innerText = phone;
+            document.getElementById('prev-buyer-email').innerText = email;
+            contactRow.classList.toggle('hidden', !phone && !email);
+            phoneWrap.classList.toggle('hidden', !phone);
+            emailWrap.classList.toggle('hidden', !email);
+
+            const totals = calculateTotals();
+            let itemsHtml = state.items.map((item, idx) => `
+                <div class="flex min-h-[18px]">
+                    <div class="w-[8%] p-1 text-center">${idx + 1}</div>
+                    <div class="w-[42%] p-1 pl-2 font-bold">${item.desc || '---------------------'}</div>
+                    <div class="w-[12%] p-1 text-center">${item.hsn || '-'}</div>
+                    <div class="w-[10%] p-1 text-right pr-2"><b>${item.qty}</b> ${item.per}</div>
+                    <div class="w-[10%] p-1 text-right pr-2">${parseFloat(item.rate || 0).toFixed(2)}</div>
+                    <div class="w-[6%] p-1 text-center">${item.per}</div>
+                    <div class="w-[12%] p-1 text-right font-bold pr-2">${parseFloat(item.amount || 0).toFixed(2)}</div>
+                </div>
+            `).join('');
+
+            itemsHtml += `
+                <div class="flex mt-6 font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">CGST</div>
+                    <div class="w-[12%] p-1"></div>
+                    <div class="w-[10%] p-1 text-right pr-2">${state.taxes.cgst}%</div>
+                    <div class="w-[10%] p-1"></div>
+                    <div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${totals.cgstAmt.toFixed(2)}</div>
+                </div>
+                <div class="flex font-medium">
+                    <div class="w-[8%] p-1"></div>
+                    <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">SGST</div>
+                    <div class="w-[12%] p-1"></div>
+                    <div class="w-[10%] p-1 text-right pr-2">${state.taxes.sgst}%</div>
+                    <div class="w-[10%] p-1"></div>
+                    <div class="w-[6%] p-1"></div>
+                    <div class="w-[12%] p-1 text-right pr-2 font-bold">${totals.sgstAmt.toFixed(2)}</div>
+                </div>
+            `;
+            if (totals.igstAmt > 0) {
+                itemsHtml += `
+                    <div class="flex font-medium">
+                        <div class="w-[8%] p-1"></div>
+                        <div class="w-[42%] p-1 pl-2 text-right italic font-semibold">IGST</div>
+                        <div class="w-[12%] p-1"></div>
+                        <div class="w-[10%] p-1 text-right pr-2">${state.taxes.igst}%</div>
+                        <div class="w-[10%] p-1"></div>
+                        <div class="w-[6%] p-1"></div>
+                        <div class="w-[12%] p-1 text-right pr-2 font-bold">${totals.igstAmt.toFixed(2)}</div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('prev-items-body').innerHTML = itemsHtml;
+            document.getElementById('prev-grand-total').innerText = '₹ ' + totals.grandTotal.toFixed(2);
+            document.getElementById('prev-amount-words').innerText = 'INR ' + numberToWords(totals.grandTotal);
+
+            // Bank details in declaration
+            const bd = state.bankDetails;
+            const hasAny = bd.bankName || bd.bankIfsc || bd.bankAccount || bd.bankUpi;
+            document.getElementById('prev-bank-placeholder').classList.toggle('hidden', !!hasAny);
+            document.getElementById('prev-bank-name').innerText = bd.bankName || '';
+            document.getElementById('prev-bank-name-row').classList.toggle('hidden', !bd.bankName);
+            document.getElementById('prev-bank-ifsc').innerText = bd.bankIfsc || '';
+            document.getElementById('prev-bank-ifsc-row').classList.toggle('hidden', !bd.bankIfsc);
+            document.getElementById('prev-bank-account').innerText = bd.bankAccount || '';
+            document.getElementById('prev-bank-account-row').classList.toggle('hidden', !bd.bankAccount);
+            document.getElementById('prev-bank-upi').innerText = bd.bankUpi || '';
+            document.getElementById('prev-bank-upi-row').classList.toggle('hidden', !bd.bankUpi);
+        }
+
+    </script>
+</body>
+</html>
 }
