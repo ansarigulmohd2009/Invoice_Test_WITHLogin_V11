@@ -1,38 +1,27 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// G.M. ENTERPRISES — Google Apps Script (SECURED VERSION)
+// G.M. ENTERPRISES — Google Apps Script (SECURED VERSION V11)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// HOW TO SET UP (do this once before deploying):
-//
-// 1. In Apps Script editor → Project Settings (gear icon) → Script Properties
-//    Add these properties:
-//
-//    API_SECRET       →  any long random string, e.g. "gme_k9x2mPqR7vLtN4wZ"
-//    USER_admin       →  your admin password, e.g. "Admin@2024"
-//    USER_manager     →  another user's password  (add as many as needed)
-//
-//    USER_ prefix + username = the key. Value = the password.
-//    Example: username "ravi" → key "USER_ravi", value "Ravi@pass123"
-//
-// 2. Deploy → New Deployment → Web App
-//    Execute as: Me
-//    Who has access: Anyone
-//    Click Deploy and copy the URL into your HTML files.
-//
-// 3. Every time you change this script, click "Deploy → Manage Deployments
-//    → Edit (pencil) → Version: New version → Deploy" to apply changes.
+// SET UP INSTRUCTIONS:
+// 1. Open your Google Sheet named "New Database_V11".
+// 2. Go to Extensions → Apps Script. Paste this code entirely.
+// 3. Click the Gear Icon (Project Settings) on the left sidebar.
+// 4. Under "Script Properties", click "Add script property" and add:
+//    - API_SECRET   →  Choose any secret word/phrase (must match HTML files).
+//    - USER_admin   →  Set your desired password, e.g., admin123
+// 5. Click Deploy → New Deployment → Select "Web App".
+//    - Execute As: Me
+//    - Who has access: Anyone
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Persistent Sessions using Google CacheService ────────────────────────────
-const SESSION_TTL_SEC = 14400; // 4 hours in seconds
+const SESSION_TTL_SEC = 14400; // 4 Hours persistent session duration
 
-// ── Sheet names ──────────────────────────────────────────────────────────────
+// Sheet configuration constants
 const SHEET_INVOICES = 'Invoices';
 const SHEET_CHALLANS = 'Challans';
 const SHEET_BUYERS   = 'Buyers';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function jsonOut(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
@@ -47,33 +36,53 @@ function generateToken() {
   return Utilities.getUuid().replace(/-/g, '') + Date.now().toString(36);
 }
 
-// Validate that a request carries a live session token from Cache.
+// Session validation with sliding expiration
 function validateSession(token) {
   if (!token) return null;
   const cache = CacheService.getScriptCache();
   const sessionStr = cache.get(token);
-  
-  if (!sessionStr) return null; // Token not found or expired
-  
-  // Slide the expiry on activity
-  cache.put(token, sessionStr, SESSION_TTL_SEC);
+  if (!sessionStr) return null;
+  cache.put(token, sessionStr, SESSION_TTL_SEC); // Refresh TTL
   return JSON.parse(sessionStr);
 }
 
-// Validate the shared API_SECRET sent with every request.
 function validateSecret(secret) {
   const expected = getProps()['API_SECRET'] || '';
   return expected !== '' && secret === expected;
 }
 
+// Dynamic target sheet accessor with automated database structural initialization
 function getSheet(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName(name);
+  let sheet = ss.getSheetByName(name);
+  
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    if (name === SHEET_INVOICES) {
+      sheet.appendRow([
+        'Invoice No', 'Date', 'Challan No', 'Buyer Name', 'Buyer Phone', 'Buyer Email', 
+        'Buyer Address', 'Buyer GSTIN', 'Sub Total', 'CGST Rate', 'CGST Amount', 
+        'SGST Rate', 'SGST Amount', 'IGST Rate', 'IGST Amount', 'Tax Amount', 
+        'Grand Total', 'Items (JSON)', 'Saved By', 'Timestamp'
+      ]);
+    } else if (name === SHEET_CHALLANS) {
+      sheet.appendRow([
+        'Challan No', 'Date', 'Challan Display No', 'Buyer Name', 'Buyer Phone', 'Buyer Email', 
+        'Buyer Address', 'Buyer GSTIN', 'Sub Total', 'Tax Amount', 'Grand Total', 
+        'Items (JSON)', 'Saved By', 'Timestamp'
+      ]);
+    } else if (name === SHEET_BUYERS) {
+      sheet.appendRow([
+        'Name', 'Address', 'GSTIN', 'State', 'State Code', 'Phone', 'Email', 'Saved By', 'Timestamp'
+      ]);
+    }
+    sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold').setBackground('#f1f5f9');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// doGet — handles read actions
-// ═══════════════════════════════════════════════════════════════════════════
+// ── GET ROUTER ──────────────────────────────────────────────────────────────
 function doGet(e) {
   const p      = e.parameter || {};
   const action = p.action    || '';
@@ -81,13 +90,11 @@ function doGet(e) {
   const token  = p.token     || '';
 
   try {
-    // ── Login does NOT need a token, but needs the API secret ──────────────
     if (action === 'checkLogin') {
-      if (!validateSecret(secret)) return jsonOut({ success: false, message: 'Unauthorized' });
+      if (!validateSecret(secret)) return jsonOut({ success: false, message: 'Unauthorized Request' });
       return handleLogin(p.username || '', p.password || '');
     }
 
-    // ── All other GET actions require a valid session token ─────────────────
     const session = validateSession(token);
     if (!session) return jsonOut({ success: false, message: 'Session expired. Please log in again.', sessionExpired: true });
 
@@ -99,16 +106,13 @@ function doGet(e) {
     if (action === 'searchBuyer')     return handleSearchBuyer(p.q || '');
     if (action === 'getBuyers')       return handleGetBuyers();
 
-    return jsonOut({ success: false, message: 'Unknown action' });
-
+    return jsonOut({ success: false, message: 'Unknown action parameter' });
   } catch (err) {
     return jsonOut({ success: false, message: err.toString() });
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// doPost — handles write actions
-// ═══════════════════════════════════════════════════════════════════════════
+// ── POST ROUTER ─────────────────────────────────────────────────────────────
 function doPost(e) {
   try {
     const body   = JSON.parse(e.postData.contents || '{}');
@@ -116,75 +120,62 @@ function doPost(e) {
     const secret = body.secret || '';
     const token  = body.token  || '';
 
-    // ── All POST actions require BOTH a valid secret AND a live session ──────
-    if (!validateSecret(secret)) return jsonOut({ success: false, message: 'Unauthorized' });
+    if (!validateSecret(secret)) return jsonOut({ success: false, message: 'Unauthorized Request' });
 
     const session = validateSession(token);
     if (!session) return jsonOut({ success: false, message: 'Session expired. Please log in again.', sessionExpired: true });
 
-    if (action === 'addInvoice') return handleAddInvoice(body.data, session.username);
-    if (action === 'addBuyer')   return handleAddBuyer(body.data, session.username);
-    if (action === 'saveBuyer')  return handleSaveBuyer(body, session.username);
+    if (action === 'addInvoice')  return handleAddInvoice(body.data, session.username);
+    if (action === 'addBuyer')    return handleAddBuyer(body.data, session.username);
+    if (action === 'saveBuyer')   return handleSaveBuyer(body, session.username);
     if (action === 'saveChallan') return handleSaveChallan(body, session.username);
 
-    return jsonOut({ success: false, message: 'Unknown action' });
+    return jsonOut({ success: false, message: 'Unknown action parameter' });
   } catch (err) {
     return jsonOut({ success: false, message: err.toString() });
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════════════════
+// ── LOGIC HANDLERS ──────────────────────────────────────────────────────────
 function handleLogin(username, password) {
   username = (username || '').trim().toLowerCase();
   if (!username || !password) {
-    return jsonOut({ success: false, message: 'Username and password are required.' });
+    return jsonOut({ success: false, message: 'Username and password fields are mandatory.' });
   }
 
-  const props    = getProps();
-  const key      = 'USER_' + username;
-  const stored   = props[key];
+  const props  = getProps();
+  const key    = 'USER_' + username;
+  const stored = props[key];
 
   if (!stored || stored !== password) {
-    return jsonOut({ success: false, message: 'Invalid username or password.' });
+    return jsonOut({ success: false, message: 'Invalid credentials provided.' });
   }
 
-  // Create session using CacheService
   const token = generateToken();
   const sessionData = {
-    username:    username,
-    displayName: props['DISPLAY_' + username] || username
+    username: username,
+    displayName: props['DISPLAY_' + username] || username.toUpperCase()
   };
   
   CacheService.getScriptCache().put(token, JSON.stringify(sessionData), SESSION_TTL_SEC);
 
   return jsonOut({
-    success:     true,
-    token:       token,
-    username:    username,
+    success: true,
+    token: token,
+    username: username,
     displayName: sessionData.displayName
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// INVOICE HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
 function handleGetInvoiceNos() {
   const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ invoiceNos: [] });
-
   const data  = sheet.getDataRange().getValues();
-  // Column A = Invoice No (skip header row 0)
-  const nos = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
-
+  const nos   = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
   return jsonOut({ invoiceNos: nos });
 }
 
 function handleGetInvoiceByNo(invoiceNo) {
   const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ invoice: null });
-
   const data  = sheet.getDataRange().getValues();
   const headers = data[0];
   for (let i = 1; i < data.length; i++) {
@@ -199,27 +190,19 @@ function handleGetInvoiceByNo(invoiceNo) {
 
 function handleGetDashboard() {
   const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ invoices: [] });
-
   const data    = sheet.getDataRange().getValues();
   const headers = data[0];
-
   const invoices = data.slice(1).map(row => {
     const inv = {};
     headers.forEach((h, j) => inv[h] = row[j]);
     return inv;
   });
-
   return jsonOut({ invoices });
 }
 
 function handleAddInvoice(data, username) {
   const sheet = getSheet(SHEET_INVOICES);
-  if (!sheet) return jsonOut({ result: 'error', message: 'Invoices sheet not found' });
-
   const allData = sheet.getDataRange().getValues();
-
-  // Duplicate check
   const exists = allData.slice(1).some(r =>
     (r[0] || '').toString().trim().toLowerCase() === (data.invoiceNo || '').toLowerCase()
   );
@@ -255,12 +238,8 @@ function handleAddInvoice(data, username) {
   return jsonOut({ result: 'success' });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BUYER HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
 function handleSearchBuyer(q) {
   const sheet = getSheet(SHEET_BUYERS);
-  if (!sheet) return jsonOut({ buyers: [] });
   const data  = sheet.getDataRange().getValues();
   if (data.length < 2) return jsonOut({ buyers: [] });
   const headers = data[0];
@@ -279,8 +258,6 @@ function handleSearchBuyer(q) {
 
 function handleGetBuyers() {
   const sheet = getSheet(SHEET_BUYERS);
-  if (!sheet) return jsonOut({ buyers: [] });
-
   const data  = sheet.getDataRange().getValues();
   if (data.length < 2) return jsonOut({ buyers: [] });
   const headers = data[0];
@@ -296,8 +273,6 @@ function handleGetBuyers() {
 
 function handleAddBuyer(data, username) {
   const sheet = getSheet(SHEET_BUYERS);
-  if (!sheet) return jsonOut({ result: 'error', message: 'Buyers sheet not found' });
-
   const allData = sheet.getDataRange().getValues();
   const nameLC  = (data.name || '').toLowerCase();
   const rowIdx  = allData.slice(1).findIndex(r => (r[0] || '').toString().toLowerCase() === nameLC);
@@ -316,7 +291,7 @@ function handleAddBuyer(data, username) {
   ];
 
   if (rowIdx >= 0) {
-    const sheetRow = rowIdx + 2; // +1 for header, +1 for 1-based
+    const sheetRow = rowIdx + 2; 
     sheet.getRange(sheetRow, 1, 1, row.length).setValues([row]);
   } else {
     sheet.appendRow(row);
@@ -337,53 +312,41 @@ function handleSaveBuyer(body, username) {
   }, username);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CHALLAN HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
 function handleGetChallanNos() {
   const sheet = getSheet(SHEET_CHALLANS);
-  if (!sheet) return jsonOut({ challanNos: [] });
   const data = sheet.getDataRange().getValues();
-
   const nos  = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
   return jsonOut({ challanNos: nos });
 }
 
 function handleGetChallansData() {
   const sheet = getSheet(SHEET_CHALLANS);
-  if (!sheet) return jsonOut({ challans: [] });
-
   const data    = sheet.getDataRange().getValues();
   const headers = data[0];
-
   const challans = data.slice(1).map(row => {
     const c = {};
     headers.forEach((h, j) => c[h] = row[j]);
     return c;
   });
-
   return jsonOut({ challans });
 }
 
 function handleSaveChallan(body, username) {
   const sheet = getSheet(SHEET_CHALLANS);
-  if (!sheet) return jsonOut({ success: false, message: 'Challans sheet not found' });
-
   const allData = sheet.getDataRange().getValues();
-
   const challanNo = (body.id || body.challanNo || '').toString().trim();
   const exists = allData.slice(1).some(r =>
     (r[0] || '').toString().trim().toLowerCase() === challanNo.toLowerCase()
   );
 
-  if (exists) return jsonOut({ success: false, message: 'Duplicate challan number' });
+  if (exists) return jsonOut({ success: false, message: 'Duplicate challan number detected' });
 
   const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
   sheet.appendRow([
     challanNo,
     body.date         || '',
-    body.challanNo    || body.challanNo || '',
+    body.challanNo    || '',
     body.buyerName    || '',
     body.buyerPhone   || '',
     body.buyerEmail   || '',

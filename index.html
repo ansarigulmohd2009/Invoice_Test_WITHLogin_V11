@@ -933,11 +933,21 @@
                     const data = await res.json();
                     if (data.sessionExpired) { doLogout(); return; }
                     if (data.buyers && data.buyers.length) {
-                        data.buyers.forEach(b => {
+                        // Normalize keys: sheet headers may be capitalized (Name, Address, GSTIN…)
+                        const normalized = data.buyers.map(b => ({
+                            name:      b.name      || b.Name      || '',
+                            address:   b.address   || b.Address   || '',
+                            gstin:     b.gstin     || b.GSTIN     || '',
+                            state:     b.state     || b.State     || 'Maharashtra',
+                            stateCode: b.stateCode || b['State Code'] || b.StateCode || '27',
+                            phone:     b.phone     || b.Phone     || '',
+                            email:     b.email     || b.Email     || ''
+                        }));
+                        normalized.forEach(b => {
                             const idx = state.savedBuyers.findIndex(x => x.name === b.name);
                             if (idx >= 0) state.savedBuyers[idx] = b; else state.savedBuyers.push(b);
                         });
-                        renderBuyerSuggestions(data.buyers);
+                        renderBuyerSuggestions(normalized);
                     } else if (!localMatches.length) {
                         closeBuyerSuggestions();
                     }

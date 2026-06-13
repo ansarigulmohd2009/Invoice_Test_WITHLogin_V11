@@ -108,14 +108,23 @@
                 <!-- ── REPRINT TAB ── -->
                 <div id="rep-panel-reprint" class="rep-panel">
                     <div class="bg-white rounded-xl border border-slate-200 p-6 max-w-lg mx-auto">
-                        <h3 class="font-bold text-base text-slate-800 mb-1">Reprint Invoice by Invoice No.</h3>
-                        <p class="text-xs text-slate-400 mb-5">Enter the exact Invoice Number to fetch and reprint it.</p>
-                        <div class="flex gap-2">
-                            <input type="text" id="reprint-inv-input" placeholder="e.g. INV/26-27/001" class="flex-1 border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 font-mono shadow-sm" onkeydown="if(event.key==='Enter') fetchInvoiceForReprint()" />
-                            <button onclick="fetchInvoiceForReprint()" class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm transition-all flex items-center gap-2">
-                                <svg id="reprint-fetch-spinner" class="hidden animate-spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                                Fetch
-                            </button>
+                        <h3 class="font-bold text-base text-slate-800 mb-1">Reprint Invoice</h3>
+                        <p class="text-xs text-slate-400 mb-5">Type Invoice No. or Buyer Name — select from suggestions or press Fetch.</p>
+                        <div class="relative">
+                            <div class="flex gap-2">
+                                <input type="text" id="reprint-inv-input" autocomplete="off"
+                                    placeholder="e.g. INV/26-27/001 or buyer name…"
+                                    class="flex-1 border border-slate-300 p-2.5 rounded-lg text-sm outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-slate-700 shadow-sm"
+                                    oninput="onReprintInputChange(this.value)"
+                                    onkeydown="if(event.key==='Enter'){ document.getElementById('reprint-inv-suggestions').classList.add('hidden'); fetchInvoiceForReprint(); }" />
+                                <button onclick="document.getElementById('reprint-inv-suggestions').classList.add('hidden'); fetchInvoiceForReprint()"
+                                    class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm transition-all flex items-center gap-2">
+                                    <svg id="reprint-fetch-spinner" class="hidden animate-spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                    Fetch
+                                </button>
+                            </div>
+                            <div id="reprint-inv-suggestions"
+                                class="hidden absolute z-50 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-52 overflow-y-auto divide-y divide-slate-100 custom-scrollbar"></div>
                         </div>
                         <div id="reprint-error" class="hidden mt-3 bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-xs font-medium"></div>
                     </div>
@@ -624,6 +633,53 @@
         let currentChallanDetail  = null;
         let currentInvoiceDetail  = null;
 
+        // ── KEY NORMALIZERS ───────────────────────────────────────────────────────
+        // The Apps Script maps sheet header text as keys. We normalize all possible
+        // variants so downstream code always has consistent camelCase field names.
+        function normalizeInvoice(raw) {
+            const get = (...keys) => { for (const k of keys) { const v = raw[k]; if (v !== undefined && v !== null && v !== '') return v; } return ''; };
+            return {
+                invoiceNo:    get('invoiceNo','Invoice No','Invoice No.','InvoiceNo','invoice_no','Invoice Number'),
+                date:         get('date','Date','Invoice Date','InvoiceDate'),
+                challanNo:    get('challanNo','Challan No','Challan No.','ChallanNo','challan_no','Ref Challan','Challan'),
+                buyerName:    get('buyerName','Buyer Name','BuyerName','buyer_name','Buyer'),
+                buyerPhone:   get('buyerPhone','Buyer Phone','BuyerPhone','buyer_phone','Phone'),
+                buyerEmail:   get('buyerEmail','Buyer Email','BuyerEmail','buyer_email','Email'),
+                buyerAddress: get('buyerAddress','Buyer Address','BuyerAddress','buyer_address','Address'),
+                buyerGstin:   get('buyerGstin','Buyer GSTIN','BuyerGstin','GSTIN','buyer_gstin'),
+                subTotal:     get('subTotal','Sub Total','SubTotal','sub_total','Subtotal'),
+                cgstRate:     get('cgstRate','CGST Rate','cgst_rate'),
+                cgstAmount:   get('cgstAmount','CGST Amount','CGST','cgst_amount'),
+                sgstRate:     get('sgstRate','SGST Rate','sgst_rate'),
+                sgstAmount:   get('sgstAmount','SGST Amount','SGST','sgst_amount'),
+                igstRate:     get('igstRate','IGST Rate','igst_rate'),
+                igstAmount:   get('igstAmount','IGST Amount','IGST','igst_amount'),
+                taxAmount:    get('taxAmount','Tax Amount','TaxAmount','tax_amount','Tax'),
+                grandTotal:   get('grandTotal','Grand Total','GrandTotal','grand_total','Total'),
+                items:        get('items','Items','ItemsJson','items_json','itemsJson'),
+                username:     get('username','Username','SavedBy','Saved By','saved_by','User')
+            };
+        }
+
+        function normalizeChallan(raw) {
+            const get = (...keys) => { for (const k of keys) { const v = raw[k]; if (v !== undefined && v !== null && v !== '') return v; } return ''; };
+            return {
+                challanNo:    get('challanNo','Challan No','Challan No.','ChallanNo','challan_no'),
+                date:         get('date','Date','Challan Date','ChallanDate'),
+                refInvoiceNo: get('refInvoiceNo','Ref Invoice No','Ref. Invoice No','RefInvoiceNo','ref_invoice_no','Reference Invoice'),
+                buyerName:    get('buyerName','Buyer Name','BuyerName','buyer_name','Buyer'),
+                buyerPhone:   get('buyerPhone','Buyer Phone','BuyerPhone','buyer_phone','Phone'),
+                buyerEmail:   get('buyerEmail','Buyer Email','BuyerEmail','buyer_email','Email'),
+                buyerAddress: get('buyerAddress','Buyer Address','BuyerAddress','buyer_address','Address'),
+                buyerGstin:   get('buyerGstin','Buyer GSTIN','BuyerGstin','GSTIN','buyer_gstin'),
+                subTotal:     get('subTotal','Sub Total','SubTotal','sub_total','Subtotal'),
+                taxAmount:    get('taxAmount','Tax Amount','TaxAmount','tax_amount','Tax','tax'),
+                grandTotal:   get('grandTotal','Grand Total','GrandTotal','grand_total','Total'),
+                items:        get('items','Items','ItemsJson','items_json','itemsJson'),
+                username:     get('username','Username','SavedBy','Saved By','saved_by','User')
+            };
+        }
+
         // ── LOAD (fetches both invoices + challans) ───────────────────────────────
         async function loadReports() {
             const icon  = document.getElementById('rep-refresh-icon');
@@ -639,21 +695,26 @@
 
                 if (invData.sessionExpired || chalData.sessionExpired) { doLogout(); return; }
 
-                repAllInvoices = (invData.invoices || []).sort((a, b) => new Date(b.date) - new Date(a.date));
-                repAllChallans = (chalData.challans || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+                // Normalize at load time — all downstream code gets consistent camelCase fields
+                repAllInvoices = (invData.invoices || [])
+                    .map(normalizeInvoice)
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                repAllChallans = (chalData.challans || [])
+                    .map(normalizeChallan)
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 populateYearSelectors();
 
-                const active = document.querySelector('.rep-tab-btn.border-teal-600') || document.getElementById('rep-tab-reprint');
-                try {
-                    const activeId = active.id.replace('rep-tab-','');
-                    if (activeId === 'all')     applyAllFilter();
-                    if (activeId === 'challan') renderChallanTable(repAllChallans);
-                } catch(e) {}
+                // Seed filtered arrays and render both tables immediately
+                repAllFiltered     = [...repAllInvoices];
+                repChallanFiltered = [...repAllChallans];
 
                 applyAllFilter();
                 renderChallanTable(repAllChallans);
+
             } catch(e) {
+                console.error('loadReports error:', e);
                 showToast('Failed to load data. Check your script URL.', 'error');
             } finally {
                 icon.classList.remove('animate-spin');
@@ -696,8 +757,8 @@
                 active.classList.add('border-teal-600', 'text-teal-700');
             }
 
-            if (tabId === 'all')     applyAllFilter();
-            if (tabId === 'challan') applyChallanFilter();
+            if (tabId === 'all')     { if (repAllInvoices.length) applyAllFilter(); }
+            if (tabId === 'challan') { if (repAllChallans.length) applyChallanFilter(); else renderChallanTable([]); }
         }
 
         // ── INVOICE TABLE HELPERS ─────────────────────────────────────────────────
@@ -822,12 +883,20 @@
         // ── BUYER FILTER ──────────────────────────────────────────────────────────
         function onBuyerFilterInput(val) {
             const suggBox = document.getElementById('buyer-filter-suggestions');
-            if (val.trim().length < 1) { suggBox.classList.add('hidden'); return; }
-            const names = [...new Set(repAllInvoices.map(i => i.buyerName).filter(n => n && n.toLowerCase().includes(val.toLowerCase())))];
+            const q = (val || '').trim();
+            if (q.length < 1) { suggBox.classList.add('hidden'); return; }
+            const names = [...new Set(
+                repAllInvoices
+                    .map(i => i.buyerName)
+                    .filter(n => n && n.toLowerCase().includes(q.toLowerCase()))
+            )];
             if (!names.length) { suggBox.classList.add('hidden'); return; }
             suggBox.innerHTML = names.slice(0, 10).map(n => `
-                <div class="px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm font-medium text-slate-700 transition-colors"
-                     onmousedown="event.preventDefault(); document.getElementById('filter-buyer').value='${n.replace(/'/g,"\\'")}'; document.getElementById('buyer-filter-suggestions').classList.add('hidden');">
+                <div class="px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm font-medium text-slate-700 transition-colors border-b last:border-0 border-slate-100"
+                     onmousedown="event.preventDefault();
+                         document.getElementById('filter-buyer').value='${n.replace(/'/g,"\\'")}';
+                         document.getElementById('buyer-filter-suggestions').classList.add('hidden');
+                         applyBuyerFilter();">
                     ${n}
                 </div>
             `).join('');
@@ -839,15 +908,23 @@
                 const b = document.getElementById('buyer-filter-suggestions');
                 if (b) b.classList.add('hidden');
             }
-            if (!e.target.closest('#challan-modal')) {
-                // modal close handled by button only
+            if (!e.target.closest('#reprint-inv-input') && !e.target.closest('#reprint-inv-suggestions')) {
+                const r = document.getElementById('reprint-inv-suggestions');
+                if (r) r.classList.add('hidden');
             }
         });
 
         function applyBuyerFilter() {
             const val = (document.getElementById('filter-buyer').value || '').trim().toLowerCase();
-            if (!val) { showToast('Please enter a buyer name', 'error'); return; }
+            if (!val) { showToast('Please enter a buyer name to search.', 'error'); return; }
             const filtered = repAllInvoices.filter(inv => (inv.buyerName || '').toLowerCase().includes(val));
+            document.getElementById('buyer-filter-suggestions').classList.add('hidden');
+            if (!filtered.length) {
+                document.getElementById('buyer-report-body').innerHTML =
+                    '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">No invoices found for this buyer.</td></tr>';
+                document.getElementById('buyer-summary-cards').classList.add('hidden');
+                return;
+            }
             document.getElementById('buyer-report-body').innerHTML = reportTableRows(filtered);
             summaryCards(filtered, 'bs-count', 'bs-revenue', 'bs-avg');
             document.getElementById('buyer-summary-cards').classList.remove('hidden');
@@ -855,32 +932,40 @@
 
         function clearBuyerFilter() {
             document.getElementById('filter-buyer').value = '';
-            document.getElementById('buyer-report-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Search for a buyer and click Apply Filter</td></tr>';
+            document.getElementById('buyer-filter-suggestions').classList.add('hidden');
+            document.getElementById('buyer-report-body').innerHTML =
+                '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Search for a buyer and click Apply Filter</td></tr>';
             document.getElementById('buyer-summary-cards').classList.add('hidden');
         }
 
         // ── ALL INVOICES FILTER ───────────────────────────────────────────────────
         function applyAllFilter() {
-            const search  = (document.getElementById('filter-all-search').value || '').toLowerCase();
+            const search  = (document.getElementById('filter-all-search').value || '').trim().toLowerCase();
             const fromVal = document.getElementById('filter-all-from').value;
             const toVal   = document.getElementById('filter-all-to').value;
             const from    = fromVal ? new Date(fromVal) : null;
             const to      = toVal   ? new Date(toVal + 'T23:59:59') : null;
 
             repAllFiltered = repAllInvoices.filter(inv => {
-                const d = new Date(inv.date);
-                if (from && d < from) return false;
-                if (to   && d > to)   return false;
-                if (search && !(
-                    (inv.invoiceNo||'').toLowerCase().includes(search) ||
-                    (inv.buyerName||'').toLowerCase().includes(search) ||
-                    (inv.challanNo||'').toLowerCase().includes(search)
-                )) return false;
+                if (from || to) {
+                    const d = new Date(inv.date);
+                    if (isNaN(d)) return false;
+                    if (from && d < from) return false;
+                    if (to   && d > to)   return false;
+                }
+                if (search) {
+                    const inInvNo   = (inv.invoiceNo  || '').toLowerCase().includes(search);
+                    const inBuyer   = (inv.buyerName  || '').toLowerCase().includes(search);
+                    const inChallan = (inv.challanNo  || '').toLowerCase().includes(search);
+                    if (!inInvNo && !inBuyer && !inChallan) return false;
+                }
                 return true;
             });
 
-            const rev = repAllFiltered.reduce((s,i) => s+(parseFloat(i.grandTotal)||0), 0);
-            document.getElementById('all-summary-row').textContent = `Showing ${repAllFiltered.length} invoice${repAllFiltered.length!==1?'s':''} · Total: ${fmtINR(rev)}`;
+            const rev   = repAllFiltered.reduce((s, i) => s + (parseFloat(i.grandTotal) || 0), 0);
+            const count = repAllFiltered.length;
+            document.getElementById('all-summary-row').textContent =
+                `Showing ${count} invoice${count !== 1 ? 's' : ''} · Total: ${fmtINR(rev)}`;
             document.getElementById('all-report-body').innerHTML = allInvoiceTableRows(repAllFiltered);
         }
 
@@ -888,6 +973,7 @@
             document.getElementById('filter-all-search').value = '';
             document.getElementById('filter-all-from').value   = '';
             document.getElementById('filter-all-to').value     = '';
+            repAllFiltered = [...repAllInvoices];
             applyAllFilter();
         }
 
@@ -896,21 +982,25 @@
         // ══════════════════════════════════════════════════════════════════════════
 
         function applyChallanFilter() {
-            const search  = (document.getElementById('challan-search').value || '').toLowerCase();
+            const search  = (document.getElementById('challan-search').value || '').trim().toLowerCase();
             const fromVal = document.getElementById('challan-from').value;
             const toVal   = document.getElementById('challan-to').value;
             const from    = fromVal ? new Date(fromVal) : null;
             const to      = toVal   ? new Date(toVal + 'T23:59:59') : null;
 
             repChallanFiltered = repAllChallans.filter(ch => {
-                const d = new Date(ch.date);
-                if (from && d < from) return false;
-                if (to   && d > to)   return false;
-                if (search && !(
-                    (ch.challanNo||'').toLowerCase().includes(search) ||
-                    (ch.buyerName||'').toLowerCase().includes(search) ||
-                    (ch.refInvoiceNo||'').toLowerCase().includes(search)
-                )) return false;
+                if (from || to) {
+                    const d = new Date(ch.date);
+                    if (isNaN(d)) return false;
+                    if (from && d < from) return false;
+                    if (to   && d > to)   return false;
+                }
+                if (search) {
+                    const inChallan = (ch.challanNo    || '').toLowerCase().includes(search);
+                    const inBuyer   = (ch.buyerName    || '').toLowerCase().includes(search);
+                    const inInv     = (ch.refInvoiceNo || '').toLowerCase().includes(search);
+                    if (!inChallan && !inBuyer && !inInv) return false;
+                }
                 return true;
             });
 
@@ -921,6 +1011,7 @@
             document.getElementById('challan-search').value = '';
             document.getElementById('challan-from').value   = '';
             document.getElementById('challan-to').value     = '';
+            repChallanFiltered = [...repAllChallans];
             applyChallanFilter();
         }
 
@@ -951,7 +1042,8 @@
         }
 
         function openChallanModal(idx) {
-            const ch = repChallanFiltered.length ? repChallanFiltered[idx] : repAllChallans[idx];
+            const arr = repChallanFiltered.length ? repChallanFiltered : repAllChallans;
+            const ch  = arr[idx];
             if (!ch) return;
             currentChallanDetail = ch;
 
@@ -1251,6 +1343,33 @@
         // ── INVOICE REPRINT LOGIC ─────────────────────────────────────────────────
         // ══════════════════════════════════════════════════════════════════════════
 
+        // ── REPRINT LIVE SEARCH ───────────────────────────────────────────────────
+        function onReprintInputChange(val) {
+            const suggBox = document.getElementById('reprint-inv-suggestions');
+            const q = (val || '').trim().toLowerCase();
+            if (!q) { suggBox.classList.add('hidden'); return; }
+
+            const matches = repAllInvoices.filter(inv =>
+                (inv.invoiceNo  || '').toLowerCase().includes(q) ||
+                (inv.buyerName  || '').toLowerCase().includes(q)
+            ).slice(0, 12);
+
+            if (!matches.length) { suggBox.classList.add('hidden'); return; }
+
+            suggBox.innerHTML = matches.map(inv => {
+                const safeNo = (inv.invoiceNo || '').replace(/'/g, "\\'");
+                return `<div class="px-4 py-2.5 cursor-pointer hover:bg-teal-50 transition-colors"
+                     onmousedown="event.preventDefault();
+                         document.getElementById('reprint-inv-input').value='${safeNo}';
+                         document.getElementById('reprint-inv-suggestions').classList.add('hidden');
+                         fetchInvoiceForReprint();">
+                    <div class="font-mono font-bold text-teal-700 text-xs">${inv.invoiceNo || '-'}</div>
+                    <div class="text-xs text-slate-400 mt-0.5 truncate">${inv.buyerName || ''} &nbsp;·&nbsp; ${fmtDate(inv.date)}</div>
+                </div>`;
+            }).join('');
+            suggBox.classList.remove('hidden');
+        }
+
         async function fetchInvoiceForReprint() {
             const invNo   = (document.getElementById('reprint-inv-input').value || '').trim();
             const spinner = document.getElementById('reprint-fetch-spinner');
@@ -1261,22 +1380,31 @@
             card.classList.add('hidden');
             currentReprintInvoice = null;
 
-            if (!invNo) { errBox.textContent = 'Please enter an Invoice Number.'; errBox.classList.remove('hidden'); return; }
+            if (!invNo) {
+                errBox.textContent = 'Please enter an Invoice Number or Buyer Name.';
+                errBox.classList.remove('hidden');
+                return;
+            }
 
             spinner.classList.remove('hidden');
 
             try {
                 const token = sessionStorage.getItem('gme_token') || '';
+
+                // Search already-loaded list first (exact match on invoice no)
                 let found = repAllInvoices.find(inv =>
                     (inv.invoiceNo || '').trim().toLowerCase() === invNo.toLowerCase()
                 );
 
+                // If not found and list is empty, reload from server then retry
                 if (!found && repAllInvoices.length === 0) {
                     try {
                         const res  = await fetch(googleScriptUrl + '?action=getDashboard&token=' + encodeURIComponent(token));
                         const data = await res.json();
                         if (data.sessionExpired) { doLogout(); return; }
-                        repAllInvoices = (data.invoices || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+                        repAllInvoices = (data.invoices || []).map(normalizeInvoice)
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+                        repAllFiltered = [...repAllInvoices];
                         populateYearSelectors();
                     } catch(e) {}
                     found = repAllInvoices.find(inv =>
@@ -1284,12 +1412,13 @@
                     );
                 }
 
+                // Last resort: hit the dedicated API endpoint
                 if (!found) {
                     try {
                         const res  = await fetch(googleScriptUrl + '?action=getInvoiceByNo&invoiceNo=' + encodeURIComponent(invNo) + '&token=' + encodeURIComponent(token));
                         const data = await res.json();
                         if (data.sessionExpired) { doLogout(); return; }
-                        if (data.invoice) found = data.invoice;
+                        if (data.invoice) found = normalizeInvoice(data.invoice);
                     } catch(e) {}
                 }
 
@@ -1574,7 +1703,8 @@
         // ══════════════════════════════════════════════════════════════════════════
 
         function openInvoiceModal(idx) {
-            const inv = repAllFiltered.length ? repAllFiltered[idx] : repAllInvoices[idx];
+            const arr = repAllFiltered.length ? repAllFiltered : repAllInvoices;
+            const inv = arr[idx];
             if (!inv) return;
             currentInvoiceDetail = inv;
 
