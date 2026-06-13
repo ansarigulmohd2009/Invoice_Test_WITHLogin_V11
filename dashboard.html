@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G.M. Enterprises - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box !important; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        .dash-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.1rem 1.25rem; }
+        .dash-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin-bottom: 4px; }
+        .dash-stat-value { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; }
+        .dash-stat-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; font-weight: 500; }
+        .dash-table th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+        .dash-table td { font-size: 12px; padding: 9px 10px; border-bottom: 1px solid #f8fafc; color: #334155; vertical-align: middle; }
+        .dash-table tr:last-child td { border-bottom: none; }
+        .dash-table tr:hover td { background: #f8fafc; }
+        .dash-badge { display:inline-flex; align-items:center; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+        .dash-badge.blue  { background:#dbeafe; color:#1d4ed8; }
+        .dash-skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans h-screen flex flex-col overflow-hidden text-slate-900 antialiased">
+
+    <div id="login-overlay" class="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center">
+        <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none"></div>
+        <div class="bg-white rounded-2xl p-10 w-full max-w-sm shadow-[0_30px_60px_rgba(0,0,0,0.45)] relative z-10 mx-4">
+            <div class="text-center mb-8">
+                <div class="text-4xl leading-none mb-2">🏢</div>
+                <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">G.M. Enterprises</h1>
+                <p class="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">Dashboard Login</p>
+            </div>
+
+            <div id="login-error" class="hidden bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-sm font-medium mb-4"></div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Username</label>
+                    <input type="text" id="login-username" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 text-slate-800 font-medium" autocomplete="username" placeholder="Enter username" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 text-slate-800 font-medium pr-10" autocomplete="current-password" placeholder="Enter password" onkeydown="if(event.key==='Enter') doLogin()" />
+                        <button type="button" onclick="toggleLoginPwd()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+                    </div>
+                </div>
+                <button id="login-btn" onclick="doLogin()" class="w-full bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-bold py-2.5 rounded-lg text-sm transition-all mt-2">
+                    Sign In
+                </button>
+            </div>
+            <p class="text-center text-[10px] text-slate-300 mt-8 font-medium">Developed by Itransform Technology</p>
+        </div>
+    </div>
+
+    <div id="dashboard-main" class="hidden flex-1 flex-col overflow-hidden h-full">
+        <div class="bg-white border-b border-slate-200 px-5 py-3.5 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-slate-800">Invoice Dashboard</h2>
+                    <p class="text-[11px] text-slate-400 font-medium">G.M. Enterprises · Live from Google Sheets</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="index.html" title="Back to Invoice App" class="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    Back to Invoice
+                </a>
+                <button onclick="loadDashboard()" id="dash-refresh-btn" title="Refresh data" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-all">
+                    <svg id="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.65"></path></svg>
+                    Refresh
+                </button>
+                <button onclick="doLogout()" title="Logout" class="px-3 py-2.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98] transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
+            </div>
+
+        </div>
+
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
+            <div class="max-w-6xl mx-auto space-y-5">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="dash-stat-card">
+                        <div class="dash-stat-label">Total Invoices</div>
+                        <div id="kpi-total-invoices" class="dash-stat-value">—</div>
+                        <div class="dash-stat-sub">All time</div>
+                    </div>
+                    <div class="dash-stat-card">
+                        <div class="dash-stat-label">Total Revenue</div>
+                        <div id="kpi-total-revenue" class="dash-stat-value">—</div>
+                        <div class="dash-stat-sub">Grand totals sum</div>
+                    </div>
+                    <div class="dash-stat-card">
+                        <div class="dash-stat-label">This Month</div>
+                        <div id="kpi-this-month" class="dash-stat-value">—</div>
+                        <div class="dash-stat-sub" id="kpi-this-month-label">Invoices</div>
+                    </div>
+                    <div class="dash-stat-card">
+                        <div class="dash-stat-label">Avg Invoice Value</div>
+                        <div id="kpi-avg-value" class="dash-stat-value">—</div>
+                        <div class="dash-stat-sub">Per invoice</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 class="font-bold text-sm text-slate-800">Monthly Revenue</h3>
+                                <p class="text-xs text-slate-400 mt-0.5">Last 6 months · Grand total</p>
+                            </div>
+                            <div id="chart-loading" class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                                <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                Loading…
+                            </div>
+                        </div>
+                        <div style="position:relative;height:220px;">
+                            <canvas id="dash-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <h3 class="font-bold text-sm text-slate-800 mb-1">Top Buyers</h3>
+                        <p class="text-xs text-slate-400 mb-4">By invoice count</p>
+                        <div id="top-buyers-list" class="space-y-2.5">
+                            <div class="dash-skeleton h-9 w-full"></div>
+                            <div class="dash-skeleton h-9 w-full"></div>
+                            <div class="dash-skeleton h-9 w-4/5"></div>
+                            <div class="dash-skeleton h-9 w-3/4"></div>
+                            <div class="dash-skeleton h-9 w-2/3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-800">Recent Invoices</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Latest 15 entries from Google Sheets</p>
+                        </div>
+                        <span id="recent-count-badge" class="text-[10px] bg-violet-100 text-violet-700 font-bold px-2.5 py-1 rounded-full"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="dash-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Invoice No.</th>
+                                    <th>Date</th>
+                                    <th>Buyer</th>
+                                    <th>Items</th>
+                                    <th class="text-right pr-5">Grand Total</th>
+                                    <th>Saved By</th>
+                                    <th>Challan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-invoices-body">
+                                <tr><td colspan="7" class="text-center py-8 text-slate-400 text-xs">
+                                    <svg class="animate-spin inline mr-2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                    Fetching invoices from Google Sheets…
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 p-5">
+                    <h3 class="font-bold text-sm text-slate-800 mb-4">Financial Year Breakdown</h3>
+                    <div id="fy-breakdown" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div class="dash-skeleton h-16 w-full rounded-lg"></div>
+                        <div class="dash-skeleton h-16 w-full rounded-lg"></div>
+                        <div class="dash-skeleton h-16 w-full rounded-lg"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbxE_8SSl4LyGF2y0daXfSAwhDT1JZWbK_DgRzEcbWcpErrhpFSaYUayGVrGYpEi-nd5xA/exec";
+
+        (function initLoginCheck() {
+            if (sessionStorage.getItem('gme_auth') === 'true') {
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('dashboard-main').classList.remove('hidden');
+                document.getElementById('dashboard-main').classList.add('flex');
+                loadDashboard();
+            }
+        })();
+
+        function toggleLoginPwd() {
+            var f = document.getElementById('login-password');
+            f.type = (f.type === 'password') ? 'text' : 'password';
+        }
+
+        async function doLogin() {
+            var username = (document.getElementById('login-username').value || '').trim();
+            var password = (document.getElementById('login-password').value || '').trim();
+            var errBox   = document.getElementById('login-error');
+            var btn      = document.getElementById('login-btn');
+
+            errBox.style.display = 'none';
+            if (!username || !password) {
+                errBox.textContent   = 'Please enter both username and password.';
+                errBox.style.display = 'block';
+                return;
+            }
+
+            btn.disabled    = true;
+            btn.textContent = 'Signing in…';
+
+            try {
+                var url = googleScriptUrl
+                    + '?action=checkLogin'
+                    + '&username=' + encodeURIComponent(username)
+                    + '&password=' + encodeURIComponent(password);
+
+                var res  = await fetch(url);
+                var data = await res.json();
+
+                if (data.success) {
+                    sessionStorage.setItem('gme_auth', 'true');
+                    sessionStorage.setItem('gme_username', data.username);
+                    sessionStorage.setItem('gme_display', data.displayName || data.username);
+                    
+                    document.getElementById('login-overlay').classList.add('hidden');
+                    document.getElementById('dashboard-main').classList.remove('hidden');
+                    document.getElementById('dashboard-main').classList.add('flex');
+                    loadDashboard();
+                } else {
+                    errBox.textContent   = data.message || 'Invalid username or password.';
+                    errBox.style.display = 'block';
+                    document.getElementById('login-password').value = '';
+                    document.getElementById('login-password').focus();
+                }
+            } catch (err) {
+                errBox.textContent   = 'Connection failed. Check your internet or Apps Script URL.';
+                errBox.style.display = 'block';
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Sign In';
+            }
+        }
+
+        function doLogout() {
+            sessionStorage.removeItem('gme_auth');
+            sessionStorage.removeItem('gme_username');
+            sessionStorage.removeItem('gme_display');
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').style.display = 'none';
+            
+            document.getElementById('dashboard-main').classList.add('hidden');
+            document.getElementById('dashboard-main').classList.remove('flex');
+            document.getElementById('login-overlay').classList.remove('hidden');
+            document.getElementById('login-username').focus();
+        }
+
+        let dashChartInstance = null;
+
+        function fmtINR(n) {
+            if (isNaN(n) || n === null) return '—';
+            if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';
+            if (n >= 100000)   return '₹' + (n / 100000).toFixed(2) + ' L';
+            return '₹' + Math.round(n).toLocaleString('en-IN');
+        }
+
+        function fmtDate(raw) {
+            if (!raw) return '-';
+            const d = new Date(raw);
+            if (isNaN(d)) return raw;
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function getMonthKey(dateStr) {
+            const d = new Date(dateStr);
+            if (isNaN(d)) return null;
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        }
+
+        function getMonthLabel(key) {
+            const [y, m] = key.split('-');
+            return new Date(+y, +m-1, 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+        }
+
+        async function loadDashboard() {
+            const refreshIcon = document.getElementById('dash-refresh-icon');
+            refreshIcon.classList.add('animate-spin');
+            document.getElementById('chart-loading').style.display = 'flex';
+
+            try {
+                const res  = await fetch(googleScriptUrl + '?action=getDashboard');
+                const data = await res.json();
+                renderDashboard(data);
+            } catch(e) {
+                renderDashboard({ invoices: [], error: 'Could not connect to Google Sheets. Showing demo data.', demo: true });
+            } finally {
+                refreshIcon.classList.remove('animate-spin');
+                document.getElementById('chart-loading').style.display = 'none';
+            }
+        }
+
+        function renderDashboard(data) {
+            const invoices = data.invoices || [];
+
+            const totalRevenue = invoices.reduce((s, inv) => s + (parseFloat(inv.grandTotal) || 0), 0);
+            const avgValue     = invoices.length ? totalRevenue / invoices.length : 0;
+
+            const now = new Date();
+            const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            const thisMonthInvs = invoices.filter(inv => getMonthKey(inv.date) === thisMonthKey);
+            const thisMonthRev  = thisMonthInvs.reduce((s, inv) => s + (parseFloat(inv.grandTotal) || 0), 0);
+
+            document.getElementById('kpi-total-invoices').textContent = invoices.length || '0';
+            document.getElementById('kpi-total-revenue').textContent  = fmtINR(totalRevenue);
+            document.getElementById('kpi-this-month').textContent     = thisMonthInvs.length;
+            document.getElementById('kpi-this-month-label').textContent = `Invoices · ${fmtINR(thisMonthRev)}`;
+            document.getElementById('kpi-avg-value').textContent      = fmtINR(avgValue);
+
+            const monthMap = {};
+            invoices.forEach(inv => {
+                const k = getMonthKey(inv.date);
+                if (!k) return;
+                monthMap[k] = (monthMap[k] || 0) + (parseFloat(inv.grandTotal) || 0);
+            });
+
+            const last6 = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                last6.push({ key: k, label: getMonthLabel(k), value: monthMap[k] || 0 });
+            }
+
+            const chartCanvas = document.getElementById('dash-chart');
+            if (dashChartInstance) { dashChartInstance.destroy(); dashChartInstance = null; }
+            dashChartInstance = new Chart(chartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: last6.map(m => m.label),
+                    datasets: [{
+                        label: 'Revenue (₹)',
+                        data: last6.map(m => Math.round(m.value)),
+                        backgroundColor: last6.map((m, i) => i === 5 ? '#7c3aed' : '#ddd6fe'),
+                        borderRadius: 6,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: ctx => ' ₹' + ctx.raw.toLocaleString('en-IN') } }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+                        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmtINR(v) }, border: { display: false } }
+                    }
+                }
+            });
+
+            const buyerMap = {};
+            invoices.forEach(inv => {
+                const name = (inv.buyerName || '').trim() || 'Unknown';
+                if (!buyerMap[name]) buyerMap[name] = { count: 0, total: 0 };
+                buyerMap[name].count++;
+                buyerMap[name].total += parseFloat(inv.grandTotal) || 0;
+            });
+            const topBuyers = Object.entries(buyerMap)
+                .sort((a,b) => b[1].count - a[1].count)
+                .slice(0, 5);
+            
+            const maxCount = topBuyers.length ? topBuyers[0][1].count : 1;
+            const buyerColors = ['#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
+
+            document.getElementById('top-buyers-list').innerHTML = topBuyers.length
+                ? topBuyers.map(([name, stats], i) => `
+                    <div>
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-xs font-semibold text-slate-700 truncate max-w-[60%]" title="${name}">${name}</span>
+                            <span class="text-xs text-slate-400 font-medium">${stats.count} inv · ${fmtINR(stats.total)}</span>
+                        </div>
+                        <div class="h-1.5 rounded-full bg-slate-100">
+                            <div style="width:${Math.round((stats.count/maxCount)*100)}%;height:100%;border-radius:999px;background:${buyerColors[i]||'#7c3aed'};transition:width .5s ease"></div>
+                        </div>
+                    </div>
+                `).join('')
+                : '<p class="text-xs text-slate-400 text-center py-6">No buyer data yet</p>';
+
+            const recent = [...invoices].reverse().slice(0, 15);
+            document.getElementById('recent-count-badge').textContent = recent.length + ' entries';
+            document.getElementById('dash-invoices-body').innerHTML = recent.length
+                ? recent.map(inv => {
+                    const total  = parseFloat(inv.grandTotal) || 0;
+                    const itemsArr = (() => { try { return JSON.parse(inv.items || '[]'); } catch(e) { return []; } })();
+                    const itemCount = itemsArr.length || (inv.itemCount || '-');
+                    return `
+                        <tr>
+                            <td><span class="font-mono font-bold text-violet-700 text-[11px]">${inv.invoiceNo || '-'}</span></td>
+                            <td class="text-slate-500">${fmtDate(inv.date)}</td>
+                            <td class="font-semibold text-slate-700 max-w-[140px] truncate" title="${inv.buyerName||''}">${inv.buyerName || '-'}</td>
+                            <td><span class="dash-badge blue">${itemCount} item${itemCount===1?'':'s'}</span></td>
+                            <td class="text-right font-bold text-slate-800 pr-5">${fmtINR(total)}</td>
+                            <td class="text-slate-400 text-[11px]">${inv.username || '-'}</td>
+                            <td class="text-slate-400 font-mono text-[11px]">${inv.challanNo || '-'}</td>
+                        </tr>
+                    `;
+                }).join('')
+                : '<tr><td colspan="7" class="text-center py-10 text-slate-400 text-xs">No invoices found in Google Sheets</td></tr>';
+
+            const fyMap = {};
+            invoices.forEach(inv => {
+                const d = new Date(inv.date);
+                if (isNaN(d)) return;
+                const m = d.getMonth();
+                const startY = m >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+                const fy = `${String(startY).slice(-2)}-${String(startY+1).slice(-2)}`;
+                if (!fyMap[fy]) fyMap[fy] = { count: 0, total: 0 };
+                fyMap[fy].count++;
+                fyMap[fy].total += parseFloat(inv.grandTotal) || 0;
+            });
+            const fyEntries = Object.entries(fyMap).sort((a,b) => b[0].localeCompare(a[0]));
+            document.getElementById('fy-breakdown').innerHTML = fyEntries.length
+                ? fyEntries.map(([fy, stats], i) => `
+                    <div class="rounded-lg border ${i===0?'border-violet-200 bg-violet-50':'border-slate-100 bg-slate-50'} p-3 text-center">
+                        <div class="text-[10px] font-bold uppercase tracking-wider ${i===0?'text-violet-500':'text-slate-400'} mb-1">FY ${fy}</div>
+                        <div class="text-base font-extrabold ${i===0?'text-violet-700':'text-slate-700'}">${fmtINR(stats.total)}</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">${stats.count} invoice${stats.count!==1?'s':''}</div>
+                    </div>
+                `).join('')
+                : '<p class="col-span-6 text-xs text-slate-400 text-center py-4">No data yet</p>';
+        }
+
+    </script>
+</body>
+</html>

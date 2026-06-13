@@ -24,11 +24,8 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Active sessions: { token → { username, displayName, expiresAt } } ──────
-// NOTE: This is in-memory. Sessions reset when the script is evicted (~30 min
-// of inactivity). That is acceptable — users will just be asked to log in again.
-const SESSIONS = {};
-const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+// ── Persistent Sessions using Google CacheService ────────────────────────────
+const SESSION_TTL_SEC = 14400; // 4 hours in seconds
 
 // ── Sheet names ──────────────────────────────────────────────────────────────
 const SHEET_INVOICES = 'Invoices';
@@ -50,19 +47,17 @@ function generateToken() {
   return Utilities.getUuid().replace(/-/g, '') + Date.now().toString(36);
 }
 
-// Validate that a request carries a live session token.
-// Returns the session object { username, displayName } or null.
+// Validate that a request carries a live session token from Cache.
 function validateSession(token) {
   if (!token) return null;
-  const session = SESSIONS[token];
-  if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    delete SESSIONS[token];
-    return null;
-  }
+  const cache = CacheService.getScriptCache();
+  const sessionStr = cache.get(token);
+  
+  if (!sessionStr) return null; // Token not found or expired
+  
   // Slide the expiry on activity
-  session.expiresAt = Date.now() + SESSION_TTL_MS;
-  return session;
+  cache.put(token, sessionStr, SESSION_TTL_SEC);
+  return JSON.parse(sessionStr);
 }
 
 // Validate the shared API_SECRET sent with every request.
@@ -75,9 +70,6 @@ function getSheet(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   return ss.getSheetByName(name);
 }
-
-// ── CORS headers (applied to all responses via HtmlService workaround) ───────
-// Apps Script doGet/doPost automatically handles CORS for "Anyone" deployments.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // doGet — handles read actions
@@ -108,6 +100,7 @@ function doGet(e) {
     if (action === 'getBuyers')       return handleGetBuyers();
 
     return jsonOut({ success: false, message: 'Unknown action' });
+
   } catch (err) {
     return jsonOut({ success: false, message: err.toString() });
   }
@@ -154,23 +147,23 @@ function handleLogin(username, password) {
   const stored   = props[key];
 
   if (!stored || stored !== password) {
-    // Intentionally vague — don't reveal which part is wrong
     return jsonOut({ success: false, message: 'Invalid username or password.' });
   }
 
-  // Create session
+  // Create session using CacheService
   const token = generateToken();
-  SESSIONS[token] = {
+  const sessionData = {
     username:    username,
-    displayName: props['DISPLAY_' + username] || username,
-    expiresAt:   Date.now() + SESSION_TTL_MS
+    displayName: props['DISPLAY_' + username] || username
   };
+  
+  CacheService.getScriptCache().put(token, JSON.stringify(sessionData), SESSION_TTL_SEC);
 
   return jsonOut({
     success:     true,
     token:       token,
     username:    username,
-    displayName: SESSIONS[token].displayName
+    displayName: sessionData.displayName
   });
 }
 
@@ -180,15 +173,18 @@ function handleLogin(username, password) {
 function handleGetInvoiceNos() {
   const sheet = getSheet(SHEET_INVOICES);
   if (!sheet) return jsonOut({ invoiceNos: [] });
+
   const data  = sheet.getDataRange().getValues();
   // Column A = Invoice No (skip header row 0)
   const nos = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
+
   return jsonOut({ invoiceNos: nos });
 }
 
 function handleGetInvoiceByNo(invoiceNo) {
   const sheet = getSheet(SHEET_INVOICES);
   if (!sheet) return jsonOut({ invoice: null });
+
   const data  = sheet.getDataRange().getValues();
   const headers = data[0];
   for (let i = 1; i < data.length; i++) {
@@ -204,13 +200,16 @@ function handleGetInvoiceByNo(invoiceNo) {
 function handleGetDashboard() {
   const sheet = getSheet(SHEET_INVOICES);
   if (!sheet) return jsonOut({ invoices: [] });
+
   const data    = sheet.getDataRange().getValues();
   const headers = data[0];
+
   const invoices = data.slice(1).map(row => {
     const inv = {};
     headers.forEach((h, j) => inv[h] = row[j]);
     return inv;
   });
+
   return jsonOut({ invoices });
 }
 
@@ -219,10 +218,12 @@ function handleAddInvoice(data, username) {
   if (!sheet) return jsonOut({ result: 'error', message: 'Invoices sheet not found' });
 
   const allData = sheet.getDataRange().getValues();
+
   // Duplicate check
   const exists = allData.slice(1).some(r =>
     (r[0] || '').toString().trim().toLowerCase() === (data.invoiceNo || '').toLowerCase()
   );
+
   if (exists) return jsonOut({ result: 'duplicate' });
 
   const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
@@ -264,6 +265,7 @@ function handleSearchBuyer(q) {
   if (data.length < 2) return jsonOut({ buyers: [] });
   const headers = data[0];
   const ql = q.toLowerCase();
+
   const buyers = data.slice(1)
     .filter(r => (r[0] || '').toString().toLowerCase().includes(ql))
     .map(row => {
@@ -271,20 +273,24 @@ function handleSearchBuyer(q) {
       headers.forEach((h, j) => b[h] = row[j]);
       return b;
     });
+
   return jsonOut({ buyers });
 }
 
 function handleGetBuyers() {
   const sheet = getSheet(SHEET_BUYERS);
   if (!sheet) return jsonOut({ buyers: [] });
+
   const data  = sheet.getDataRange().getValues();
   if (data.length < 2) return jsonOut({ buyers: [] });
   const headers = data[0];
+
   const buyers = data.slice(1).map(row => {
     const b = {};
     headers.forEach((h, j) => b[h] = row[j]);
     return b;
   });
+
   return jsonOut({ buyers });
 }
 
@@ -338,6 +344,7 @@ function handleGetChallanNos() {
   const sheet = getSheet(SHEET_CHALLANS);
   if (!sheet) return jsonOut({ challanNos: [] });
   const data = sheet.getDataRange().getValues();
+
   const nos  = data.slice(1).map(r => r[0]).filter(v => v && v.toString().trim());
   return jsonOut({ challanNos: nos });
 }
@@ -345,13 +352,16 @@ function handleGetChallanNos() {
 function handleGetChallansData() {
   const sheet = getSheet(SHEET_CHALLANS);
   if (!sheet) return jsonOut({ challans: [] });
+
   const data    = sheet.getDataRange().getValues();
   const headers = data[0];
+
   const challans = data.slice(1).map(row => {
     const c = {};
     headers.forEach((h, j) => c[h] = row[j]);
     return c;
   });
+
   return jsonOut({ challans });
 }
 
@@ -360,13 +370,16 @@ function handleSaveChallan(body, username) {
   if (!sheet) return jsonOut({ success: false, message: 'Challans sheet not found' });
 
   const allData = sheet.getDataRange().getValues();
+
   const challanNo = (body.id || body.challanNo || '').toString().trim();
   const exists = allData.slice(1).some(r =>
     (r[0] || '').toString().trim().toLowerCase() === challanNo.toLowerCase()
   );
+
   if (exists) return jsonOut({ success: false, message: 'Duplicate challan number' });
 
   const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
   sheet.appendRow([
     challanNo,
     body.date         || '',
