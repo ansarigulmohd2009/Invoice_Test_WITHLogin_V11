@@ -1091,7 +1091,7 @@
             const wordsStr   = 'INR ' + numberToWords(Math.round(grandTotal));
 
             const itemRows = items.map((it, idx) => `
-                <div class="flex min-h-[18px] item-row">
+                <div class="flex min-h-[18px]">
                     <div class="w-[8%] p-1 text-center">${idx + 1}</div>
                     <div class="w-[42%] p-1 pl-2 font-bold">${it.desc || '---------------------'}</div>
                     <div class="w-[12%] p-1 text-center">${it.hsn || '-'}</div>
@@ -1135,23 +1135,22 @@
         @media print {
             body { background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; display: block !important; }
             #printable-challan {
-                position: relative !important;
+                position: absolute !important; left: 0 !important; top: 0 !important;
                 width: 190mm !important; max-width: 190mm !important;
-                height: auto !important; min-height: 277mm !important; max-height: none !important;
+                height: 277mm !important; min-height: 277mm !important; max-height: 277mm !important;
                 margin: 0 auto !important; padding: 0 !important;
                 box-shadow: none !important; background: white !important;
+                page-break-inside: avoid !important;
                 display: flex !important; flex-direction: column !important;
             }
-            #items-table-container { flex-grow: 1 !important; height: auto !important; min-height: 0 !important; }
-            .item-row { break-inside: avoid; page-break-inside: avoid; }
-            .buyer-info-block { overflow: visible !important; }
+            #items-table-container { flex-grow: 1 !important; height: auto !important; }
             @page { size: A4 portrait; margin: 10mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-scheme: light !important; }
         }
     </style>
 </head>
 <body class="bg-slate-100 font-sans flex items-start justify-center p-6">
-<div id="printable-challan" class="bg-white shadow-xl" style="width:190mm;max-width:190mm;min-height:277mm;font-size:10px;display:flex;flex-direction:column;">
+<div id="printable-challan" class="bg-white shadow-xl" style="width:190mm;max-width:190mm;min-height:277mm;height:277mm;max-height:277mm;font-size:10px;display:flex;flex-direction:column;">
     <div class="tally-border" style="flex:1;display:flex;flex-direction:column;">
         <div class="text-center font-bold text-lg py-1 tally-border-b underline tracking-wider bg-white">DELIVERY CHALLAN</div>
         <div class="flex tally-border-b" style="min-height:135px;">
@@ -1180,13 +1179,11 @@
                 </div>
             </div>
         </div>
-        <div class="flex tally-border-b buyer-info-block" style="min-height:115px;">
+        <div class="flex tally-border-b" style="min-height:115px;">
             <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
                 <div>
                     <div class="font-bold text-[9px] uppercase tracking-wide text-gray-500">Consignee (Ship to)</div>
                     <div class="font-bold text-sm uppercase mt-1">${ch.buyerName || '-----------'}</div>
-                    ${ch.buyerAddress ? '<div class="mt-1">' + ch.buyerAddress + '</div>' : ''}
-                    ${ch.buyerGstin ? '<div class="mt-1"><span class="font-bold">GSTIN/UIN: </span>' + ch.buyerGstin + '</div>' : ''}
                     ${ch.buyerPhone ? '<div class="mt-1"><span class="font-bold">Ph: </span>' + ch.buyerPhone + '</div>' : ''}
                     ${ch.buyerEmail ? '<div><span class="font-bold">Email: </span>' + ch.buyerEmail + '</div>' : ''}
                 </div>
@@ -1224,7 +1221,7 @@
                 <div class="w-[6%] tally-border-r p-1">per</div>
                 <div class="w-[12%] p-1 text-right pr-2">Amount</div>
             </div>
-            <div class="w-full flex-1 z-10 pt-1">
+            <div class="w-full flex-1 z-10 pt-1 overflow-hidden">
                 ${itemRows}${taxRows}
             </div>
         </div>
@@ -1488,7 +1485,7 @@
             }
 
             const itemRows = items.map((it, idx) => `
-                <div class="flex min-h-[18px] item-row">
+                <div class="flex min-h-[18px]">
                     <div class="w-[8%] p-1 text-center">${idx + 1}</div>
                     <div class="w-[42%] p-1 pl-2 font-bold">${it.desc || '---------------------'}</div>
                     <div class="w-[12%] p-1 text-center">${it.hsn || '-'}</div>
@@ -1549,23 +1546,22 @@
         @media print {
             body { background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; display: block !important; }
             #printable-invoice {
-                position: relative !important;
+                position: absolute !important; left: 0 !important; top: 0 !important;
                 width: 190mm !important; max-width: 190mm !important;
-                height: auto !important; min-height: 277mm !important; max-height: none !important;
+                height: 277mm !important; min-height: 277mm !important; max-height: 277mm !important;
                 margin: 0 auto !important; padding: 0 !important;
                 box-shadow: none !important; background: white !important;
+                page-break-inside: avoid !important;
                 display: flex !important; flex-direction: column !important;
             }
-            #items-table-container { flex-grow: 1 !important; height: auto !important; min-height: 0 !important; }
-            .item-row { break-inside: avoid; page-break-inside: avoid; }
-            .buyer-info-block { overflow: visible !important; }
+            #items-table-container { flex-grow: 1 !important; height: auto !important; }
             @page { size: A4 portrait; margin: 10mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-scheme: light !important; }
         }
     </style>
 </head>
 <body class="bg-slate-100 font-sans flex items-start justify-center p-6">
-<div id="printable-invoice" class="bg-white shadow-xl" style="width:190mm;max-width:190mm;min-height:277mm;font-size:10px;display:flex;flex-direction:column;">
+<div id="printable-invoice" class="bg-white shadow-xl" style="width:190mm;max-width:190mm;min-height:277mm;height:277mm;max-height:277mm;font-size:10px;display:flex;flex-direction:column;">
     <div class="tally-border" style="flex:1;display:flex;flex-direction:column;">
         <div class="text-center font-bold text-lg py-1 tally-border-b underline tracking-wider bg-white">TAX INVOICE</div>
         <div class="flex tally-border-b" style="min-height:135px;">
@@ -1594,12 +1590,12 @@
                 </div>
             </div>
         </div>
-        <div class="flex tally-border-b buyer-info-block" style="min-height:115px;">
+        <div class="flex tally-border-b" style="min-height:115px;">
             <div class="w-1/2 tally-border-r p-2 flex flex-col justify-between">
                 <div>
                     <div class="font-bold text-[9px] uppercase tracking-wide text-gray-500">Buyer (Bill to)</div>
                     <div class="font-bold text-sm uppercase mt-1">${inv.buyerName || '-----------'}</div>
-                    ${buyerAddress ? '<div class="mt-1">' + buyerAddress + '</div>' : ''}
+                    <div class="mt-1">${buyerAddress}</div>
                     <div class="mt-2"><span class="font-bold">GSTIN/UIN: </span> ${buyerGstin}</div>
                     <div><span class="font-bold">State Name: </span> ${state.company.state}, <span class="font-bold">Code:</span> ${state.company.stateCode}</div>
                     ${(buyerPhone || buyerEmail) ? `<div class="mt-1">${buyerPhone ? '<span class="font-bold">Ph: </span>' + buyerPhone : ''}${buyerEmail ? '<span class="ml-3 font-bold">Email: </span>' + buyerEmail : ''}</div>` : ''}
@@ -1639,7 +1635,7 @@
                 <div class="w-[6%] tally-border-r p-1">per</div>
                 <div class="w-[12%] p-1 text-right pr-2">Amount</div>
             </div>
-            <div class="w-full flex-1 z-10 pt-1">
+            <div class="w-full flex-1 z-10 pt-1 overflow-hidden">
                 ${itemRows}${taxRows}
             </div>
         </div>
